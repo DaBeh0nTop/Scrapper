@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Email:Pass Grabber — Level Support</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<style>
+  :root{ --bg:#0a0f1c; --panel:#0e1627; --ink:#e9f0ff; --muted:#97a6c0; --neon:#4ff1d6; --neon2:#6b5cff; --line:rgba(255,255,255,0.06);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:linear-gradient(180deg,#060b16,#0a0f1c 60%,#0a1324 100%);color:var(--ink);display:flex;justify-content:center;padding:20px}
+  .wrap{width:100%;max-width:1100px;display:grid;grid-template-columns:360px 1fr;gap:16px}
+  header{grid-column:1/-1;display:flex;align-items:center;gap:12px}
+  h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.2px}
+  .badge{margin-left:auto;background:linear-gradient(90deg,var(--neon),var(--neon2));color:#031217;padding:6px 10px;border-radius:999px;font-weight:900}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(3,8,23,.5);padding:14px}
+  .drop{border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;cursor:pointer;user-select:none}
+  .drop.drag{background:linear-gradient(90deg,rgba(79,241,214,.06),rgba(107,92,255,.05))}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{background:var(--neon);color:#042428;border:none;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .btn.sm{padding:6px 10px;font-size:13px}
+  .muted{color:var(--muted);font-size:12px}
+  .bar{height:8px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden}
+  .prog{height:100%;background:linear-gradient(90deg,var(--neon),var(--neon2));width:0%}
+  .list{max-height:120px;overflow:auto;border-top:1px dashed var(--line);margin-top:8px;padding-top:8px}
+  .file{font-size:12px;color:var(--muted)} .file strong{color:var(--neon)}
+  .chip{background:rgba(255,255,255,.04);border:1px solid var(--line);padding:6px 8px;border-radius:8px;font-size:12px;color:var(--muted)}
+  .results{display:flex;flex-direction:column;gap:10px}
+  .box{border:1px solid var(--line);border-radius:10px;padding:10px;min-height:220px;max-height:520px;overflow:auto;background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
+  .pair{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px;background:rgba(255,255,255,.02)}
+  .left{display:flex;align-items:center;gap:10px;min-width:0}
+  .email{font-family:monospace;font-weight:900;color:var(--neon);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pass{font-family:monospace;font-weight:800;color:var(--neon2)}
+  .lvl{font-family:monospace;font-weight:800;color:#e6f54f}
+  .iconbtn{background:transparent;border:1px dashed var(--line);color:var(--muted);border-radius:8px;padding:6px 8px;cursor:pointer;font-size:12px}
+  .footer{display:flex;justify-content:space-between;align-items:center}
+  @media (max-width:1000px){ .wrap{grid-template-columns:1fr} } input[type=file]{display:none}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Email:Pass Grabber</h1>
+      <span class="badge" id="total">0</span>
+    </header>
+
+    <!-- LEFT -->
+    <section class="card">
+      <label class="drop" id="drop">
+        <input id="files" type="file" accept=".txt,.log,.csv,text/plain" multiple />
+        <div><strong>Click or Drop Files</strong><div class="muted" style="margin-top:6px">Local-only • Multi-file</div></div>
+      </label>
+
+      <div class="row" style="margin-top:8px">
+        <label class="muted"><input id="ok" type="checkbox"> I own or have permission to process these files</label>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" id="play">▶ Play</button>
+        <button class="btn sm ghost" id="stop" disabled>■ Stop</button>
+        <button class="btn sm ghost" id="clear">Clear</button>
+      </div>
+
+      <div style="margin-top:8px">
+        <div class="bar"><div class="prog" id="prog"></div></div>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <label class="muted"><input id="onlyValid" type="checkbox"> Only valid emails</label>
+        <label class="muted"><input id="mask" type="checkbox" checked> Mask passwords</label>
+        <label class="muted"><input id="dedupe" type="checkbox" checked> Pro de-dupe</label>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <label class="muted"><input id="includeLevel" type="checkbox"> Append level (EMAIL:PASS:LVL)</label>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" id="dlTxt">Download TXT</button>
+        <button class="btn sm" id="dlCsv">Export CSV</button>
+        <button class="btn sm" id="dlZip">ZIP (pairs + errors)</button>
+        <button class="btn sm ghost" id="copyAll">Copy All</button>
+      </div>
+
+      <div class="list" id="queue"></div>
+    </section>
+
+    <!-- RIGHT -->
+    <section class="card results">
+      <div class="row" style="justify-content:space-between">
+        <div class="muted">Grabbed</div>
+        <div class="row">
+          <span class="chip" id="validC">Valid: 0</span>
+          <span class="chip" id="invalidC">Invalid: 0</span>
+          <span class="chip" id="dupeC">Dupes: 0</span>
+        </div>
+      </div>
+
+      <div class="box" id="box"><div class="muted" id="empty">No pairs yet.</div></div>
+
+      <div class="footer">
+        <div class="muted">Output: <code>email:pass</code> (alnum pass) — optional <code>:LVL</code></div>
+        <div class="row">
+          <button class="iconbtn" id="selectAll">Select all</button>
+          <button class="iconbtn" id="deselectAll">Deselect</button>
+          <button class="iconbtn" id="removeSel">Remove selected</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+<script>
+/* ===== DOM ===== */
+const filesEl = document.getElementById('files');
+const drop = document.getElementById('drop');
+const ok = document.getElementById('ok');
+const play = document.getElementById('play');
+const stopBtn = document.getElementById('stop');
+const clearBtn = document.getElementById('clear');
+const prog = document.getElementById('prog');
+const queueEl = document.getElementById('queue');
+const onlyValid = document.getElementById('onlyValid');
+const mask = document.getElementById('mask');
+const dedupeChk = document.getElementById('dedupe');
+const includeLevel = document.getElementById('includeLevel');
+const dlTxt = document.getElementById('dlTxt');
+const dlCsv = document.getElementById('dlCsv');
+const dlZip = document.getElementById('dlZip');
+const copyAll = document.getElementById('copyAll');
+const total = document.getElementById('total');
+const box = document.getElementById('box');
+const empty = document.getElementById('empty');
+const validC = document.getElementById('validC');
+const invalidC = document.getElementById('invalidC');
+const dupeC = document.getElementById('dupeC');
+const selectAllBtn = document.getElementById('selectAll');
+const deselectAllBtn = document.getElementById('deselectAll');
+const removeSelBtn = document.getElementById('removeSel');
+
+/* ===== State ===== */
+let q = [];                  // File[]
+let running = false, stopReq=false;
+let pairs = [];              // {id,email,pass,valid,selected,source,level}
+let errors = [];             // {source,line,content,reason}
+let seq = 1;
+let dupesRemoved = 0;
+
+/* ===== Utils ===== */
+const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+function isValidEmail(e){ return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/i.test(e); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function maskPass(s){ return s ? '•'.repeat(Math.min(12,s.length)) + (s.length>12 ? '…' : '') : ''; }
+
+/* Strip 1–4 digit prefix glued to email ("1234.name@gmail.com" → "name@gmail.com") if result stays valid */
+function maybeStripIndex(token){
+  const m = token.match(/^(\d{1,4})\.([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})$/);
+  if(!m) return token;
+  const candidate = m[2];
+  return isValidEmail(candidate) ? candidate : token;
+}
+
+/* Pro email normalization for dedupe (with strip) */
+function normEmail(email){
+  email = maybeStripIndex(email).toLowerCase().trim();
+  let [local, domain] = email.split('@');
+  if(!domain) return email;
+  if(domain === 'gmail.com' || domain === 'googlemail.com'){
+    local = local.replace(/\./g,'').replace(/\+.*/,'');
+    domain = 'gmail.com';
+  } else if (/(outlook|hotmail|live)\.com$/.test(domain)){
+    local = local.replace(/\+.*/,'');
+  }
+  return `${local}@${domain}`;
+}
+function keyFor(p){ return `${normEmail(p.email)}|${p.pass}`; }
+
+/* Level detection on a single line or with a one-line lookahead */
+function detectLevelFrom(line){
+  // tokens: lvl | level | lv  (case-insensitive) + optional : = - + spaces, then capture alnum level (1-12 chars)
+  const m = line.match(/(?:^|[\s|,;()\[\]\-–—])(?:lvl|level|lv)\s*[:=\- ]\s*([A-Za-z0-9]{1,12})/i);
+  return m ? m[1] : null;
+}
+
+function renderQueue(){
+  queueEl.innerHTML = q.map(f=>`<div class="file"><strong>${esc(f.name)}</strong> <span style="float:right" id="st-${f._id}">queued</span></div>`).join('');
+}
+function counts(){
+  document.getElementById('total').textContent = pairs.length;
+  const v = pairs.filter(x=>x.valid).length;
+  validC.textContent = 'Valid: ' + v;
+  invalidC.textContent = 'Invalid: ' + (pairs.length - v);
+  dupeC.textContent = 'Dupes: ' + dupesRemoved;
+}
+function render(){
+  box.innerHTML = '';
+  const showValid = onlyValid.checked;
+  const list = pairs.filter(p => !showValid || p.valid);
+  if(list.length === 0){ box.appendChild(empty); return; }
+  for(const p of list){
+    const row = document.createElement('div'); row.className='pair'; row.dataset.id=p.id;
+    const left = document.createElement('div'); left.className='left';
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked=!!p.selected; cb.addEventListener('change', ()=> p.selected = cb.checked);
+    const e = document.createElement('div'); e.className='email'; e.textContent=p.email;
+    const ps = document.createElement('div'); ps.className='pass'; ps.textContent = mask.checked ? maskPass(p.pass) : p.pass;
+    left.append(cb,e,ps);
+    if(p.level){
+      const lv = document.createElement('div'); lv.className='lvl'; lv.textContent = `:${p.level}`;
+      left.append(lv);
+    }
+    const right = document.createElement('div'); right.className='row';
+    const copy = document.createElement('button'); copy.className='iconbtn'; copy.textContent='Copy';
+    copy.onclick = async ()=>{ 
+      const txt = includeLevel.checked && p.level ? `${p.email}:${p.pass}:${p.level}` : `${p.email}:${p.pass}`;
+      try{ await navigator.clipboard.writeText(txt); copy.textContent='Copied'; setTimeout(()=>copy.textContent='Copy',900);}catch{alert('Copy failed');}
+    };
+    const rm = document.createElement('button'); rm.className='iconbtn'; rm.textContent='Remove';
+    rm.onclick = ()=>{ pairs = pairs.filter(x=>x.id!==p.id); counts(); render(); };
+    right.append(copy,rm);
+    row.append(left,right);
+    box.appendChild(row);
+  }
+}
+
+/* Strict pair patterns (optional 1–4 digit prefix before email) */
+const STRICT_PAIR = /((?:\d{1,4}\.)?[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\s*[:=]\s*([A-Za-z0-9]+)/g;
+const STRICT_PAIR_SP = /((?:\d{1,4}\.)?[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\s*:\s*([A-Za-z0-9]+)/g;
+
+/* CSV header detect */
+const CSV_HEAD = /(^|,|\t|\s)(email|e-mail|username)\b.*(,|\t|\s)(pass(word)?|pwd)\b/i;
+
+/* Parse with level awareness */
+async function parseText(text, source){
+  let foundHere = 0;
+
+  // Pre-split lines for level context
+  const lines = text.split(/\r?\n/);
+
+  // 1) Global strict sweep (fast path) — detect level from its line (and next line if needed)
+  for (const re of [STRICT_PAIR, STRICT_PAIR_SP]) {
+    re.lastIndex = 0;
+    let m;
+    while((m = re.exec(text)) !== null){
+      const matchStart = m.index;
+      // find the line index this match belongs to
+      let lineIdx = 0, pos = 0;
+      for(let i=0;i<lines.length;i++){
+        const nextPos = pos + lines[i].length + 1; // +1 for newline
+        if(matchStart < nextPos){ lineIdx = i; break; }
+        pos = nextPos;
+      }
+      let email = maybeStripIndex(m[1].trim());
+      const pass = m[2].trim();
+      if(!email || !pass) continue;
+      let level = detectLevelFrom(lines[lineIdx]) || (lines[lineIdx+1] ? detectLevelFrom(lines[lineIdx+1]) : null);
+      const valid = isValidEmail(email);
+      pushPair(email, pass, valid, source, level);
+      foundHere++;
+    }
+  }
+
+  // 2) CSV mode (strip index & capture level column if present)
+  if(CSV_HEAD.test(text.slice(0,4096))){
+    const header = (lines[0]||'').split(/,|\t/).map(s=>s.trim().toLowerCase());
+    const ei = header.findIndex(h=>/^(email|e-mail|username)$/.test(h));
+    const pi = header.findIndex(h=>/^(pass(word)?|pwd)$/.test(h));
+    const li = header.findIndex(h=>/^(level|lvl|lv)$/.test(h)); // level column optional
+    if(ei>-1 && pi>-1){
+      for(let i=1;i<lines.length;i++){
+        const cols = lines[i].split(/,|\t/);
+        if(cols.length<=Math.max(ei,pi)) continue;
+        let email = maybeStripIndex((cols[ei]||'').trim().replace(/^"|"$/g,''));
+        let pass = (cols[pi]||'').trim().replace(/^"|"$/g,'');
+        let level = li>-1 ? (cols[li]||'').trim().replace(/^"|"$/g,'') : null;
+        if(!email) continue;
+        const mp = pass.match(/[A-Za-z0-9]+/);
+        pass = mp ? mp[0] : '';
+        if(level){
+          const ml = level.match(/[A-Za-z0-9]{1,12}/);
+          level = ml ? ml[0] : null;
+        }
+        if(!pass){ errors.push({source,line:i+1,content:lines[i],reason:'empty/non-alnum password (CSV)'}); continue; }
+        const valid = isValidEmail(email);
+        pushPair(email, pass, valid, source, level);
+        foundHere++;
+      }
+    }
+  }
+
+  // 3) Rescue pass & level: email then ":" or "=" then alnum pass; detect level on this or next line
+  for(let i=0;i<lines.length;i++){
+    const L = lines[i];
+    if(!L) continue;
+    const emails = L.match(new RegExp(EMAIL, 'g')) || [];
+    if(emails.length===0) continue;
+    let grabbedAnyThisLine = false;
+    for(const raw of emails){
+      const emClean = maybeStripIndex(raw.trim());
+      const idx = L.indexOf(raw);
+      const tail = L.slice(idx + raw.length);
+      const m = tail.match(/^\s*[:=]\s*([A-Za-z0-9]+)/);
+      if(m){
+        const pass = m[1].trim();
+        const valid = isValidEmail(emClean);
+        const level = detectLevelFrom(L) || (lines[i+1] ? detectLevelFrom(lines[i+1]) : null);
+        pushPair(emClean, pass, valid, source, level);
+        foundHere++; grabbedAnyThisLine = true;
+      }
+    }
+    if(!grabbedAnyThisLine){
+      errors.push({source,line:i+1,content:L,reason:'email without strict pass'});
+    }
+  }
+  return foundHere;
+}
+
+/* Push/merge pair (merge-in level if same email+pass already exists) */
+function pushPair(email, pass, valid, source, level=null){
+  const key = `${normEmail(email)}|${pass}`;
+  // See if exists; if so, enrich level if missing
+  const existing = pairs.find(p => keyFor(p) === key);
+  if(existing){
+    if(!existing.level && level){ existing.level = level; }
+    return;
+  }
+  const obj = {id:seq++, email, pass:pass.trim(), valid, selected:false, source, level};
+  pairs.push(obj);
+}
+
+/* Pro de-dupe with running count (ignores level for uniqueness) */
+function dedupe(){
+  const before = pairs.length;
+  const seen = new Set();
+  const out = [];
+  for(const p of pairs){
+    const k = keyFor(p);
+    if(!seen.has(k)){ seen.add(k); out.push(p); }
+  }
+  pairs = out;
+  const removed = before - pairs.length;
+  if(removed > 0) dupesRemoved += removed;
+}
+
+/* ===== Queue & IO ===== */
+drop.addEventListener('click', ()=> filesEl.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', e => { e.preventDefault(); drop.classList.remove('drag'); });
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); addFiles([...e.dataTransfer.files||[]]); });
+filesEl.addEventListener('change', e => addFiles([...e.target.files]));
+
+function addFiles(arr){
+  for(const f of arr){ f._id = Math.random().toString(36).slice(2,10)+Date.now().toString(36); q.push(f); }
+  renderQueue();
+}
+function readText(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsText(f); }); }
+function renderQueue(){ queueEl.innerHTML = q.map(f=>`<div class="file"><strong>${esc(f.name)}</strong> <span style="float:right" id="st-${f._id}">queued</span></div>`).join(''); }
+
+/* ===== Controls ===== */
+play.addEventListener('click', async ()=>{
+  if(running) return;
+  if(!ok.checked){ alert('Please confirm permission.'); return; }
+  if(q.length===0){ alert('No files queued.'); return; }
+  running = true; stopReq=false; play.disabled=true; stopBtn.disabled=false;
+  const totalF = q.length; let done=0;
+  for(const f of q){
+    if(stopReq) break;
+    const st = document.getElementById(`st-${f._id}`); if(st) st.textContent='reading...';
+    try{
+      const txt = await readText(f);
+      if(st) st.textContent='parsing...';
+      await parseText(txt, f.name);
+      if(st) st.textContent='done';
+    }catch(e){
+      if(st) st.textContent='error';
+      errors.push({source:f.name,line:null,content:'<read failed>',reason:String(e)});
+    }
+    done++; prog.style.width = (done/totalF*100)+'%';
+    if(dedupeChk.checked) dedupe();
+    counts(); render();
+    await new Promise(r=>setTimeout(r,120));
+  }
+  running=false; stopReq=false; play.disabled=false; stopBtn.disabled=true;
+  q=[]; renderQueue();
+});
+stopBtn.addEventListener('click', ()=>{ stopReq=true; stopBtn.disabled=true; play.disabled=false; });
+clearBtn.addEventListener('click', ()=> {
+  if(!confirm('Clear queue, pairs, errors, and duplicate count?')) return;
+  q=[]; pairs=[]; errors=[]; seq=1; dupesRemoved=0; prog.style.width='0%'; renderQueue(); counts(); render();
+});
+
+/* toggles */
+onlyValid.addEventListener('change', ()=>{ render(); counts(); });
+mask.addEventListener('change', render);
+dedupeChk.addEventListener('change', ()=>{ if(dedupeChk.checked) dedupe(); render(); counts(); });
+
+/* selection ops */
+selectAllBtn.addEventListener('click', ()=> { for(const p of pairs) p.selected=true; render(); });
+deselectAllBtn.addEventListener('click', ()=> { for(const p of pairs) p.selected=false; render(); });
+removeSelBtn.addEventListener('click', ()=> {
+  const any = pairs.some(p=>p.selected);
+  if(!any) return alert('No selected rows.');
+  if(!confirm('Remove selected rows?')) return;
+  pairs = pairs.filter(p=>!p.selected);
+  counts(); render();
+});
+
+/* ===== Exports ===== */
+function currentList(){ const v = onlyValid.checked; return pairs.filter(p => !v || p.valid); }
+function formatTxt(p){ return includeLevel.checked && p.level ? `${p.email}:${p.pass}:${p.level}` : `${p.email}:${p.pass}`; }
+
+dlTxt.addEventListener('click', ()=>{
+  const list = currentList(); if(list.length===0) return alert('No pairs.');
+  const txt = list.map(formatTxt).join('\n');
+  const blob = new Blob([txt], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='pairs.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+});
+dlCsv.addEventListener('click', ()=>{
+  const list = currentList(); if(list.length===0) return alert('No pairs.');
+  const csv = ['email,pass,level,valid,source', ...list.map(p=>`"${p.email.replace(/"/g,'""')}","${p.pass.replace(/"/g,'""')}","${(p.level||'').replace(/"/g,'""')}",${p.valid},"${p.source}"`)].join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='pairs.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+});
+dlZip.addEventListener('click', async ()=>{
+  const list = currentList();
+  const zip = new JSZip();
+  // pairs.txt respects includeLevel
+  zip.file('pairs.txt', list.map(formatTxt).join('\n') || '');
+  // pairs.csv always includes level column
+  zip.file('pairs.csv', ['email,pass,level,valid,source', ...list.map(p=>`"${p.email.replace(/"/g,'""')}","${p.pass.replace(/"/g,'""')}","${(p.level||'').replace(/"/g,'""')}",${p.valid},"${p.source}"`)].join('\n'));
+  const errTxt = errors.length ? errors.map(e=>`[${e.source}${e.line?':'+e.line:''}] ${e.reason} :: ${e.content}`).join('\n') : 'No errors logged.';
+  zip.file('errors.txt', errTxt);
+  const summary = {
+    total_pairs: pairs.length,
+    pairs_in_zip: list.length,
+    valid: pairs.filter(p=>p.valid).length,
+    invalid: pairs.filter(p=>!p.valid).length,
+    with_level: list.filter(p=>!!p.level).length,
+    include_level_toggle: !!includeLevel.checked,
+    dedupe_enabled: !!dedupeChk.checked,
+    dupes_removed_total: dupesRemoved,
+    only_valid_filter: !!onlyValid.checked,
+    timestamp: new Date().toISOString()
+  };
+  zip.file('summary.json', JSON.stringify(summary,null,2));
+  const blob = await zip.generateAsync({type:'blob'});
+  saveAs(blob, 'grabbed_output.zip');
+});
+copyAll.addEventListener('click', async ()=>{
+  const list = currentList(); if(list.length===0) return alert('No pairs.');
+  const txt = list.map(formatTxt).join('\n');
+  try{ await navigator.clipboard.writeText(txt); alert('Copied'); }catch{ prompt('Copy failed. Manual copy:', txt); }
+});
+
+/* ===== Boot ===== */
+counts(); renderQueue(); render();
+</script>
+</body>
+</html>
