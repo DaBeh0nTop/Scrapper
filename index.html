@@ -2,102 +2,159 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Data Pair Cleaner</title>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <style>
+  /* ============== THEME ============== */
   :root{
-    --bg1:#0c1220; --bg2:#000000; --panel:#0e1324cc; --border:#17e7ff; --muted:#8aa0b6;
-    --cyan:#17e7ff; --magenta:#ff3df0; --yellow:#ffe64d; --red:#ff4d5e; --green:#47ff9c;
-    --ring:0 0 0 2px rgba(23,231,255,.35), 0 0 24px rgba(23,231,255,.2);
+    --bg1:#0b1020; --bg2:#000000; --panel:#0f1630cc; --borderC:#17e7ff;
+    --muted:#9eb3ca; --cyan:#17e7ff; --mag:#ff3df0; --yel:#ffe64d;
+    --red:#ff596e; --green:#46ffa2;
+    --radius:14px; --radius-sm:10px;
+    --pad:14px; --gap:14px;
+    --shadow:0 8px 26px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.02);
+    --ring:0 0 0 2px rgba(23,231,255,.35), 0 0 26px rgba(23,231,255,.18);
+    --text: clamp(13px, 1.4vw, 14px);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
-  *{box-sizing:border-box}
+  *,*::before,*::after{box-sizing:border-box}
   html,body{height:100%}
   body{
-    margin:0; color:#fff; font-family:Inter,Segoe UI,system-ui,-apple-system,Arial,sans-serif;
-    background: radial-gradient(1200px 700px at 20% -10%, #132f57 0%, transparent 60%),
-                linear-gradient(135deg,var(--bg1) 0%, var(--bg2) 70%);
+    margin:0; color:#eef6ff; font-family: Inter, "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    font-size: var(--text);
+    background:
+      radial-gradient(1000px 600px at 15% -10%, #13305a 0%, transparent 55%),
+      linear-gradient(135deg, var(--bg1) 0%, var(--bg2) 70%);
+    min-height:100dvh;
   }
-  .wrap{display:grid; grid-template-rows:auto 1fr auto; min-height:100vh; gap:18px; padding:18px}
-  .header{display:flex; align-items:center; justify-content:space-between; gap:16px}
-  .brand{display:flex; gap:12px; align-items:center}
-  .brand h1{margin:0; font-size:22px; letter-spacing:.3px; color:var(--cyan)}
+  a{color:var(--cyan); text-decoration:none}
+  /* ============== LAYOUT ============== */
+  .wrap{
+    display:grid; grid-template-rows:auto 1fr auto;
+    min-height:100dvh; gap:var(--gap); padding:calc(var(--gap) + env(safe-area-inset-top)) var(--gap) calc(64px + var(--gap) + env(safe-area-inset-bottom));
+  }
+  .header{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .brand{display:flex; gap:10px; align-items:center}
+  .brand h1{margin:0; font-size:clamp(18px,2.2vw,22px); color:var(--cyan); letter-spacing:.3px}
   .brand p{margin:0; color:var(--muted); font-size:12px}
+  .tally{display:flex; gap:12px; font-weight:800}
+  .tally span{white-space:nowrap}
+  .t-valid{color:var(--green)} .t-invalid{color:var(--red)} .t-dupes{color:var(--yel)}
+
+  /* MOBILE-FIRST: one column; desktop upgrades to 2 columns */
   .grid{
-    display:grid; grid-template-columns:420px 1fr; gap:18px;
+    display:grid; grid-template-columns:1fr; gap:var(--gap);
   }
+  @media (min-width: 980px){
+    .grid{ grid-template-columns: 420px 1fr; }
+  }
+
   .panel{
-    background:var(--panel); border:1px solid rgba(23,231,255,.25); border-radius:14px;
-    box-shadow:0 8px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.02);
-    overflow:hidden;
+    background:var(--panel); border:1px solid rgba(23,231,255,.22);
+    border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;
   }
-  .panel .head{
-    display:flex; align-items:center; justify-content:space-between; padding:12px 14px;
-    border-bottom:1px solid rgba(255,255,255,.06); background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);
+  .head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px var(--pad);
+    border-bottom:1px solid rgba(255,255,255,.06);
+    background:linear-gradient(180deg, rgba(255,255,255,.04), transparent);
   }
-  .panel .head h3{margin:0; font-size:13px; letter-spacing:.4px; color:#cfefff; text-transform:uppercase}
-  .content{padding:14px}
-  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .head h3{margin:0; font-size:12px; letter-spacing:.4px; text-transform:uppercase; color:#dbf6ff}
+  .content{padding:var(--pad)}
+
+  /* Upload */
   .upload{
-    border:2px dashed var(--cyan); border-radius:12px; padding:26px; text-align:center; cursor:pointer;
-    transition:.25s; outline:none;
+    border:2px dashed var(--borderC); border-radius:var(--radius);
+    padding:22px; text-align:center; cursor:pointer; transition:.2s;
+    background:#0a1126;
   }
-  .upload:hover,.upload.drag{box-shadow:var(--ring); border-color:#ff3df0}
-  .upload p{margin:6px 0 0; color:var(--muted); font-size:13px}
-  .queue{max-height:200px; overflow:auto}
+  .upload:hover,.upload.drag{box-shadow:var(--ring)}
+  .upload p{margin:6px 0 0; color:var(--muted); font-size:12px}
+  .queue{max-height:220px; overflow:auto; -webkit-overflow-scrolling:touch}
   .q-item{
-    display:grid; grid-template-columns:1fr auto; gap:10px; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.06);
-    font-size:13px;
+    display:grid; grid-template-columns:1fr auto; gap:8px; padding:10px 8px;
+    border-bottom:1px solid rgba(255,255,255,.06);
   }
-  .status{color:var(--yellow); font-weight:600}
-  .controls .line{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-  .consent{display:flex; align-items:center; gap:10px; color:#ffc7cc; font-size:13px}
-  .tally{display:flex; gap:16px; font-weight:700; margin-top:6px}
-  .tally span{font-size:13px}
-  .t-valid{color:var(--green)} .t-invalid{color:var(--red)} .t-dupes{color:var(--yellow)}
-  .switch{display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:#d9ebff}
-  .switch label{display:flex; gap:8px; align-items:center; background:#0c1326; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.06)}
-  .seg{display:flex; gap:8px; background:#0c1326; border:1px solid rgba(255,255,255,.06); border-radius:10px; padding:6px}
-  .seg label{padding:6px 10px; border-radius:8px; cursor:pointer}
+  .status{color:var(--yel); font-weight:700}
+
+  /* Controls */
+  .controls .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .seg{display:flex; gap:6px; background:#0a1126; border:1px solid rgba(255,255,255,.06); border-radius:var(--radius-sm); padding:6px}
+  .seg label{display:flex; align-items:center}
   .seg input{display:none}
-  .seg input:checked + span{background:#18213f; border:1px solid rgba(23,231,255,.35)}
-  button{
-    background:linear-gradient(180deg,#1ef1ff,#14b1ff); color:#001018; border:0; border-radius:10px; padding:10px 14px; font-weight:800;
-    letter-spacing:.3px; cursor:pointer; transition:.22s; box-shadow:0 6px 20px rgba(20,177,255,.25);
+  .seg span{padding:8px 10px; border-radius:10px; cursor:pointer; user-select:none}
+  .seg input:checked + span{background:#182240; border:1px solid rgba(23,231,255,.35)}
+
+  .consent{display:flex; align-items:center; gap:8px; color:#ffd7db}
+  .switch{display:flex; gap:8px; flex-wrap:wrap}
+  .switch label{
+    display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:10px;
+    background:#0a1126; border:1px solid rgba(255,255,255,.06);
   }
-  button:hover{transform:translateY(-1px)}
-  button.secondary{background:linear-gradient(180deg,#222a45,#1a2039); color:#e8f8ff; box-shadow:none; border:1px solid rgba(255,255,255,.06)}
-  button.danger{background:linear-gradient(180deg,#ff6b7a,#ff4057); color:#12040a}
-  button:disabled{opacity:.45; cursor:not-allowed; transform:none}
+
+  button{
+    appearance:none; -webkit-tap-highlight-color:transparent;
+    background:linear-gradient(180deg, #1ef1ff, #14b1ff); color:#001018;
+    border:0; border-radius:12px; padding:12px 16px; font-weight:900; letter-spacing:.3px;
+    box-shadow:0 6px 18px rgba(20,177,255,.28); cursor:pointer; transition:transform .12s, opacity .12s;
+    min-height:44px;
+  }
+  button.secondary{
+    background:linear-gradient(180deg, #222a45, #192038); color:#e9f7ff;
+    border:1px solid rgba(255,255,255,.08); box-shadow:none;
+  }
+  button.danger{
+    background:linear-gradient(180deg, #ff6e7c, #ff445c); color:#150408;
+  }
+  button:disabled{opacity:.5; transform:none; cursor:not-allowed}
+  button:active{transform:translateY(1px)}
 
   .progress{height:10px; background:#0b0f1e; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,.06)}
-  .progress .bar{height:100%; width:0%; background:linear-gradient(90deg,var(--cyan),var(--magenta)); transition:width .25s}
+  .bar{height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--mag)); transition:width .25s}
 
-  .cols{display:grid; grid-template-columns:1fr 380px; gap:18px}
-  .result-list{max-height:460px; overflow:auto}
+  /* Results / Errors / Preview / Log */
+  .cols{display:grid; grid-template-columns:1fr; gap:var(--gap)}
+  @media (min-width: 980px){ .cols{ grid-template-columns: 1fr 360px; } }
+  .result-list{max-height:48vh; overflow:auto; -webkit-overflow-scrolling:touch; contain: content; }
   .row-item{
-    display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.06);
-    align-items:center; font-size:13px;
+    display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; align-items:center;
+    padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.06);
   }
+  .email{color:var(--cyan)} .tok{color:var(--mag)} .lvl{color:var(--yel)}
   .tok.masked{filter:blur(3px)}
-  .email{color:var(--cyan)} .tok{color:var(--magenta)} .lvl{color:var(--yellow)} .src{color:#8b96a8}
-  .err-list{max-height:180px; overflow:auto; background:#0b0f1e; border:1px dashed rgba(255,255,255,.08); border-radius:10px; padding:10px}
+  .src{color:#8ea0bb; font-size:12px}
+  .err-list{max-height:28vh; overflow:auto; background:#0a0f1f; border:1px dashed rgba(255,255,255,.08); border-radius:12px; padding:10px}
   .err{color:var(--red); font-size:12px; border-bottom:1px dotted rgba(255,255,255,.08); padding:6px 0}
   .preview{
-    background:#0b0f1e; border-radius:12px; border:1px solid rgba(255,255,255,.06); padding:12px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px;
-    min-height:96px; white-space:pre-wrap;
+    background:#0b0f1e; border-radius:12px; border:1px solid rgba(255,255,255,.06);
+    padding:10px; min-height:84px; font-family:var(--mono); font-size:12px; white-space:pre-wrap;
   }
-  .hl-email{background:rgba(23,231,255,.2); padding:0 2px}
-  .hl-token{background:rgba(255,61,240,.2); padding:0 2px}
-  .hl-level{background:rgba(255,230,77,.2); padding:0 2px}
-  .log{
-    max-height:240px; overflow:auto; background:#0b0f1e; border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:10px; font-size:12px
-  }
+  .hl-email{background:rgba(23,231,255,.25); padding:0 2px}
+  .hl-token{background:rgba(255,61,240,.25); padding:0 2px}
+  .hl-level{background:rgba(255,230,77,.25); padding:0 2px}
+  .log{max-height:28vh; overflow:auto; background:#0b0f1e; border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:10px; font-size:12px}
   .log .item{border-bottom:1px dotted rgba(255,255,255,.08); padding:6px 4px}
-  .log .ts{color:#9ec8ff; margin-right:6px}
-  .footer{color:var(--muted); font-size:12px; text-align:center}
+  .log .ts{color:#9fcaff; margin-right:6px}
+
+  /* Sticky mobile action bar (bottom) */
+  .actionbar{
+    position:fixed; left:0; right:0; bottom:0;
+    padding:8px calc(10px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+    background:linear-gradient(180deg, transparent, rgba(0,0,0,.65) 18%), #0b0f1e;
+    border-top:1px solid rgba(255,255,255,.08);
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; z-index:20;
+  }
+  @media (min-width:980px){
+    .actionbar{display:none}
+  }
+
+  .footer{color:var(--muted); font-size:12px; text-align:center; padding-bottom:env(safe-area-inset-bottom)}
 </style>
 </head>
 <body>
@@ -118,64 +175,63 @@
     </div>
 
     <div class="grid">
-      <!-- LEFT COLUMN: Queue + Controls -->
+      <!-- LEFT: Inputs -->
       <div class="panel">
         <div class="head"><h3>Input & Controls</h3></div>
         <div class="content controls">
           <div id="upload" class="upload" tabindex="0">
-            <strong>Click or Drag & Drop files</strong>
-            <p>TXT, CSV, LOG accepted. Processed 100% in your browser.</p>
+            <strong>Tap or Drag & Drop files</strong>
+            <p>TXT, CSV, LOG • Processed locally on your device</p>
             <input id="file" type="file" multiple accept=".txt,.csv,.log" hidden />
           </div>
 
           <div class="row" style="margin-top:10px">
             <div class="seg" role="radiogroup" aria-label="Mode">
-              <label><input type="radio" name="mode" value="fast" checked /><span>Fast Scan</span></label>
-              <label><input type="radio" name="mode" value="slow" /><span>Slow Scan</span></label>
+              <label><input type="radio" name="mode" value="fast" checked><span>Fast</span></label>
+              <label><input type="radio" name="mode" value="slow"><span>Slow (visual)</span></label>
             </div>
             <div class="consent">
-              <input id="consent" type="checkbox" />
+              <input id="consent" type="checkbox">
               <label for="consent">I own or have permission to process these files</label>
             </div>
           </div>
 
-          <div class="row line">
-            <button id="play" disabled>Play</button>
-            <button id="stop" class="secondary" disabled>Stop</button>
-            <button id="clearAll" class="secondary">Clear All</button>
-            <button id="copyAll" class="secondary" disabled>Copy All</button>
-            <button id="exportZip" disabled>Export ZIP</button>
-          </div>
-
-          <div class="row switch" style="margin-top:6px">
-            <label><input id="onlyValid" type="checkbox" /> <span>Only Valid Emails</span></label>
-            <label><input id="maskTokens" type="checkbox" checked /> <span>Mask Passwords</span></label>
-            <label><input id="proDedup" type="checkbox" checked /> <span>Pro De-Dupe</span></label>
-            <label><input id="appendLevel" type="checkbox" checked /> <span>Append Level</span></label>
-          </div>
-
-          <div class="row" style="width:100%">
-            <div class="progress" style="flex:1">
-              <div id="bar" class="bar"></div>
+          <div class="row" style="margin-top:6px">
+            <div class="switch">
+              <label><input id="onlyValid" type="checkbox"> <span>Only Valid</span></label>
+              <label><input id="maskTokens" type="checkbox" checked> <span>Mask Tokens</span></label>
+              <label><input id="proDedup" type="checkbox" checked> <span>Pro De-Dupe</span></label>
+              <label><input id="appendLevel" type="checkbox" checked> <span>Append Level</span></label>
             </div>
+          </div>
+
+          <div class="row" style="width:100%; margin-top:8px">
+            <div class="progress" style="flex:1"><div id="bar" class="bar"></div></div>
           </div>
 
           <div class="panel" style="margin-top:12px; background:#0a0f1f; border:1px solid rgba(255,255,255,.06)">
             <div class="head"><h3>Queue</h3></div>
-            <div class="content">
-              <div id="queue" class="queue"></div>
-            </div>
+            <div class="content"><div id="queue" class="queue"></div></div>
+          </div>
+
+          <div class="row" style="gap:8px; margin-top:10px">
+            <!-- Desktop action buttons -->
+            <button id="play" aria-label="Play">Play</button>
+            <button id="stop" class="secondary" disabled>Stop</button>
+            <button id="clearAll" class="secondary">Clear</button>
+            <button id="copyAll" class="secondary" disabled>Copy All</button>
+            <button id="exportZip" disabled>Export ZIP</button>
           </div>
         </div>
       </div>
 
-      <!-- RIGHT COLUMN: Results + Errors + Slow Mode Preview + Action Log -->
+      <!-- RIGHT: Results -->
       <div class="panel">
         <div class="head"><h3>Results & Audit</h3></div>
         <div class="content">
           <div class="cols">
             <div>
-              <div class="row" style="margin-bottom:8px; gap:8px">
+              <div class="row" style="gap:8px; margin-bottom:8px">
                 <button id="selectAll" class="secondary" disabled>Select All</button>
                 <button id="deselectAll" class="secondary" disabled>Deselect All</button>
                 <button id="removeSelected" class="danger" disabled>Remove Selected</button>
@@ -196,40 +252,42 @@
 
             <div>
               <div class="panel" style="background:#0a0f1f; border:1px solid rgba(255,255,255,.06)">
-                <div class="head"><h3>Live Preview (Slow Mode)</h3></div>
-                <div class="content">
-                  <div id="preview" class="preview">—</div>
-                </div>
+                <div class="head"><h3>Live Preview (Slow)</h3></div>
+                <div class="content"><div id="preview" class="preview">—</div></div>
               </div>
-
               <div class="panel" style="margin-top:12px; background:#0a0f1f; border:1px solid rgba(255,255,255,.06)">
-                <div class="head"><h3>Action Log (Slow Mode)</h3></div>
+                <div class="head"><h3>Action Log (Slow)</h3></div>
                 <div class="content">
                   <div id="log" class="log" aria-live="polite"></div>
-                  <div class="row" style="margin-top:8px">
-                    <button id="clearLog" class="secondary">Clear Log</button>
-                  </div>
+                  <div class="row" style="margin-top:8px"><button id="clearLog" class="secondary">Clear Log</button></div>
                 </div>
               </div>
-
             </div>
+
           </div>
         </div>
       </div>
     </div>
 
-    <div class="footer">All processing is local (client-side). Export package includes pairs.txt, pairs.csv, errors.txt, and summary.json.</div>
+    <!-- Sticky mobile action bar -->
+    <div class="actionbar" role="toolbar" aria-label="Quick actions">
+      <button id="mPlay">Play</button>
+      <button id="mStop" class="secondary" disabled>Stop</button>
+      <button id="mExport">Export</button>
+    </div>
+
+    <div class="footer">Local-only processing. Export includes pairs.txt, pairs.csv, errors.txt, summary.json.</div>
   </div>
 
 <script>
 (() => {
-  // ===== Utilities =====
-  const $ = sel => document.querySelector(sel);
-  const el = (tag, opts={}) => Object.assign(document.createElement(tag), opts);
-  const now = () => new Date().toISOString();
+  // ===== Shortcuts =====
+  const $ = s => document.querySelector(s);
+  const el = (t, p={}) => Object.assign(document.createElement(t), p);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const iso = () => new Date().toISOString();
 
-  // Email normalization: lowercase, gmail-specific dot/plus removal
+  // ===== Normalizers =====
   function normalizeEmail(raw){
     if(!raw) return "";
     let email = String(raw).trim().toLowerCase();
@@ -240,549 +298,406 @@
       local = local.replace(/\./g,"").replace(/\+.*$/,"");
       domain = "gmail.com";
     }
-    return `${local}@${domain}`;
+    return `${local}@${domain}`.replace(/^\d+\./,""); // strip numeric prefix before email
   }
-
-  // Token normalization: keep alphanum only (explicitly remove arrows etc.)
   function normalizeToken(raw){
     if(!raw) return "";
-    const tok = String(raw).trim();
-    return tok.replace(/[^a-zA-Z0-9]/g,"");
+    return String(raw).trim().replace(/[^a-zA-Z0-9]/g,""); // remove =>, ==> etc.
   }
-
-  // Simple CSV splitter (handles quotes minimally)
   function splitCSVLine(line){
-    const out=[]; let cur=""; let inQ=false;
+    const out=[]; let cur=""; let q=false;
     for(let i=0;i<line.length;i++){
       const c=line[i];
-      if(c === '"'){ inQ = !inQ; continue; }
-      if(c === ',' && !inQ){ out.push(cur.trim()); cur=""; continue; }
+      if(c === '"'){ q = !q; continue; }
+      if(c === ',' && !q){ out.push(cur.trim()); cur=""; continue; }
       cur += c;
     }
     out.push(cur.trim());
     return out;
   }
 
-  // ===== Core Class =====
+  // ===== App =====
   class Cleaner {
     constructor(){
       // State
       this.files=[];
       this.results=[]; // {email, token, level, source, raw, valid, selected}
       this.errors=[];
-      this.dupKeys=new Set();
-      this.normalizedMap=new Map(); // key -> index in results (for dedupe)
-      this.isProcessing=false;
-      this.totalLines=0;
-      this.processedLines=0;
+      this.map=new Map(); // key -> idx
+      this.total=0; this.done=0;
       this.mode="fast";
-      this.abortCtl = { stop:false };
+      this.running=false;
+      this.stopFlag=false;
 
       // UI refs
-      this.$queue=$("#queue");
-      this.$bar=$("#bar");
-      this.$play=$("#play");
-      this.$stop=$("#stop");
-      this.$copy=$("#copyAll");
-      this.$export=$("#exportZip");
-      this.$selAll=$("#selectAll");
-      this.$deselAll=$("#deselectAll");
-      this.$rmSel=$("#removeSelected");
-      this.$errors=$("#errors");
-      this.$results=$("#results");
-      this.$preview=$("#preview");
-      this.$log=$("#log");
-      this.$tValid=$("#tValid");
-      this.$tInvalid=$("#tInvalid");
-      this.$tDupes=$("#tDupes");
+      this.$queue=$("#queue"); this.$results=$("#results"); this.$errors=$("#errors");
+      this.$bar=$("#bar"); this.$preview=$("#preview"); this.$log=$("#log");
+      this.$tValid=$("#tValid"); this.$tInvalid=$("#tInvalid"); this.$tDupes=$("#tDupes");
 
       // Options
       this.opts={
-        onlyValid: $("#onlyValid"),
-        maskTokens: $("#maskTokens"),
-        proDedup: $("#proDedup"),
-        appendLevel: $("#appendLevel"),
-        consent: $("#consent")
+        consent: $("#consent"), onlyValid: $("#onlyValid"), mask: $("#maskTokens"),
+        dedup: $("#proDedup"), appendLevel: $("#appendLevel")
       };
 
-      // Bind UI
-      this.bindUI();
+      // Buttons (desktop)
+      this.btn={ play:$("#play"), stop:$("#stop"), clear:$("#clearAll"),
+                 copy:$("#copyAll"), export:$("#exportZip"),
+                 sel:$("#selectAll"), desel:$("#deselectAll"), rm:$("#removeSelected") };
+      // Mobile bar
+      this.mbtn={ play:$("#mPlay"), stop:$("#mStop"), export:$("#mExport") };
+
+      this.bind();
+      this.updateButtons();
     }
 
-    bindUI(){
-      const fileInput = $("#file");
-      const up = $("#upload");
-
-      up.addEventListener("click", ()=> fileInput.click());
-      ["dragover","dragenter"].forEach(ev => up.addEventListener(ev, e=>{
-        e.preventDefault(); up.classList.add("drag");
-      }));
-      ["dragleave","drop"].forEach(ev => up.addEventListener(ev, e=>{
-        e.preventDefault(); up.classList.remove("drag");
-      }));
+    bind(){
+      // Upload
+      const up=$("#upload"), file=$("#file");
+      up.addEventListener("click", ()=> file.click());
+      ["dragover","dragenter"].forEach(evn=> up.addEventListener(evn, e=>{ e.preventDefault(); up.classList.add("drag"); }));
+      ["dragleave","drop"].forEach(evn=> up.addEventListener(evn, e=>{ e.preventDefault(); up.classList.remove("drag"); }));
       up.addEventListener("drop", e=>{
-        const files=[...e.dataTransfer.files].filter(f=>/\.(txt|csv|log)$/i.test(f.name));
-        if(files.length) this.setFiles(files);
+        const fs=[...e.dataTransfer.files].filter(f=>/\.(txt|csv|log)$/i.test(f.name));
+        if(fs.length) this.setFiles(fs);
       });
-      fileInput.addEventListener("change", e=>{
-        const files=[...e.target.files].filter(f=>/\.(txt|csv|log)$/i.test(f.name));
-        if(files.length) this.setFiles(files);
-        fileInput.value="";
+      file.addEventListener("change", e=>{
+        const fs=[...e.target.files].filter(f=>/\.(txt|csv|log)$/i.test(f.name));
+        if(fs.length) this.setFiles(fs);
+        file.value="";
       });
 
       // Mode
-      document.querySelectorAll('input[name="mode"]').forEach(r=>{
+      document.querySelectorAll('input[name="mode"]').forEach(r =>
         r.addEventListener("change", ()=>{
           this.mode = document.querySelector('input[name="mode"]:checked').value;
-          this.log(`Mode set to ${this.mode.toUpperCase()}`);
-        });
-      });
+          this.log(`Mode: ${this.mode.toUpperCase()}`);
+        })
+      );
 
-      // Consent gating
-      this.opts.consent.addEventListener("change", ()=> this.updatePlayState());
+      // Toggles
+      Object.values(this.opts).forEach(input => input.addEventListener("change", ()=> this.renderResults()));
 
-      // Buttons
-      this.$play.addEventListener("click", ()=> this.start());
-      this.$stop.addEventListener("click", ()=> this.stop());
-      $("#clearAll").addEventListener("click", ()=> this.clearAll());
+      // Buttons desktop
+      this.btn.play.addEventListener("click", ()=> this.start());
+      this.btn.stop.addEventListener("click", ()=> this.stop());
+      this.btn.clear.addEventListener("click", ()=> this.clear());
+      this.btn.copy.addEventListener("click", ()=> this.copyAll());
+      this.btn.export.addEventListener("click", ()=> this.exportZip());
+      this.btn.sel.addEventListener("click", ()=> this.selectAll(true));
+      this.btn.desel.addEventListener("click", ()=> this.selectAll(false));
+      this.btn.rm.addEventListener("click", ()=> this.removeSelected());
       $("#clearErrors").addEventListener("click", ()=> { this.errors=[]; this.renderErrors(); });
       $("#clearLog").addEventListener("click", ()=> { this.$log.innerHTML=""; });
-      this.$copy.addEventListener("click", ()=> this.copyAll());
-      this.$export.addEventListener("click", ()=> this.exportZip());
-      this.$selAll.addEventListener("click", ()=> this.setSelection(true));
-      this.$deselAll.addEventListener("click", ()=> this.setSelection(false));
-      this.$rmSel.addEventListener("click", ()=> this.removeSelected());
 
-      // Switches
-      ["onlyValid","maskTokens","proDedup","appendLevel"].forEach(k=>{
-        this.opts[k].addEventListener("change", ()=> this.renderResults());
+      // Buttons mobile
+      this.mbtn.play.addEventListener("click", ()=> this.start());
+      this.mbtn.stop.addEventListener("click", ()=> this.stop());
+      this.mbtn.export.addEventListener("click", ()=> this.exportZip());
+
+      // Consent
+      this.opts.consent.addEventListener("change", ()=> this.updateButtons());
+
+      // Passive scroll perf
+      ["results","errors","queue","log"].forEach(id=>{
+        const n = document.getElementById(id);
+        n && n.addEventListener("touchstart", ()=>{}, {passive:true});
       });
     }
 
-    setFiles(files){
-      this.files = files.map(f=>({file:f, name:f.name, status:"Queued"}));
-      this.renderQueue();
-      this.updatePlayState();
-      // Reset data on new file intake
-      this.results=[]; this.errors=[]; this.dupKeys.clear(); this.normalizedMap.clear();
-      this.totalLines=0; this.processedLines=0;
-      this.renderResults(); this.renderErrors();
-      this.updateTallies();
+    setFiles(fs){
+      this.files = fs.map(f=>({file:f, name:f.name, status:"Queued"}));
+      this.results=[]; this.errors=[]; this.map.clear(); this.total=0; this.done=0;
+      this.renderQueue(); this.renderResults(); this.renderErrors(); this.updateTallies();
       this.$bar.style.width="0%";
-    }
-
-    updatePlayState(){
-      this.$play.disabled = !(this.opts.consent.checked && this.files.length>0);
+      this.updateButtons();
     }
 
     renderQueue(){
-      this.$queue.innerHTML = this.files.map(f=>(
-        `<div class="q-item"><div>${f.name}</div><div class="status">${f.status}</div></div>`
-      )).join("");
+      this.$queue.innerHTML = this.files.map(f=>`
+        <div class="q-item">
+          <div>${this.escape(f.name)}</div>
+          <div class="status">${f.status}</div>
+        </div>
+      `).join("") || `<div style="color:#8ea0bb">No files added.</div>`;
     }
 
-    // ===== Processing =====
+    updateButtons(){
+      const ok = this.opts.consent.checked && this.files.length>0 && !this.running;
+      this.btn.play.disabled = !ok; this.mbtn.play.disabled = !ok;
+      this.btn.stop.disabled = !this.running; this.mbtn.stop.disabled = !this.running;
+      const hasRes = this.results.length>0, any = hasRes || this.errors.length>0;
+      this.btn.copy.disabled = !hasRes;
+      this.btn.export.disabled = !any; this.mbtn.export.disabled = !any;
+      this.btn.sel.disabled = !hasRes; this.btn.desel.disabled = !hasRes; this.btn.rm.disabled = !hasRes;
+    }
+
     async start(){
-      if(this.isProcessing) return;
-      if(!(this.opts.consent.checked && this.files.length>0)) return;
-      this.isProcessing = true;
-      this.abortCtl.stop=false;
-      this.$play.disabled = true;
-      this.$stop.disabled = true; // enable after we start first chunk
-      this.$export.disabled = true;
-      this.$copy.disabled = true;
-      this.$selAll.disabled = true;
-      this.$deselAll.disabled = true;
-      this.$rmSel.disabled = true;
+      if(this.running) return;
+      if(!(this.opts.consent.checked && this.files.length)) return;
+      this.running=true; this.stopFlag=false; this.updateButtons();
       this.log("Processing started.");
 
       for(let i=0;i<this.files.length;i++){
-        if(this.abortCtl.stop) break;
-        const entry=this.files[i];
-        entry.status="Reading"; this.renderQueue();
-        const text = await entry.file.text();
-        entry.status="Parsing"; this.renderQueue();
+        if(this.stopFlag) break;
+        const e=this.files[i];
+        e.status="Reading"; this.renderQueue();
+        const text = await e.file.text();
+        e.status="Parsing"; this.renderQueue();
 
         const lines = text.split(/\r?\n/);
-        this.totalLines += lines.length;
+        this.total += lines.length;
 
-        if(/\.csv$/i.test(entry.name)){
-          await this.processCSV(lines, entry.name);
+        if(/\.csv$/i.test(e.name)){
+          await this.processCSV(lines, e.name);
         } else {
-          await this.processText(lines, entry.name);
+          await this.processText(lines, e.name);
         }
 
-        entry.status="Done"; this.renderQueue();
+        e.status="Done"; this.renderQueue();
       }
 
-      this.finish();
+      this.running=false; this.log("Processing finished.");
+      this.updateButtons(); this.renderResults(); this.renderErrors();
     }
+    stop(){ if(!this.running) return; this.stopFlag=true; this.log("Stop requested."); }
 
-    stop(){
-      if(!this.isProcessing) return;
-      this.abortCtl.stop=true;
-      this.log("Stop requested by operator.");
-    }
-
-    async finish(){
-      this.isProcessing=false;
-      this.$play.disabled = !this.opts.consent.checked || this.files.length===0;
-      this.$stop.disabled = true;
-      this.$export.disabled = this.results.length===0 && this.errors.length===0;
-      this.$copy.disabled = this.results.length===0;
-      this.$selAll.disabled = this.results.length===0;
-      this.$deselAll.disabled = this.results.length===0;
-      this.$rmSel.disabled = this.results.length===0;
-      this.log("Processing finished.");
-      this.renderResults();
-      this.renderErrors();
-    }
-
-    // Chunked fast processing for responsiveness
+    /* FAST == big chunks; SLOW == one-by-one with preview/log */
     async processText(lines, source){
-      const chunk = this.mode==="fast" ? 800 : 1;
+      const chunk = this.mode==="fast" ? 700 : 1;
       for(let i=0;i<lines.length;i+=chunk){
-        if(this.abortCtl.stop) break;
-        const slice=lines.slice(i, i+chunk);
+        if(this.stopFlag) break;
+        const slice = lines.slice(i, i+chunk);
         if(this.mode==="slow"){
-          // One line at a time with preview + log
           for(let j=0;j<slice.length;j++){
-            if(this.abortCtl.stop) break;
-            const ln = slice[j];
-            await this.processLine(ln, source, i+j+1, true);
-            this.processedLines++;
-            this.updateProgress();
-            await sleep(120); // deliberate slowdown for visibility
+            if(this.stopFlag) break;
+            await this.processLine(slice[j], source, i+j+1, true);
+            this.done++; this.updateProgress(); await sleep(110);
           }
         } else {
-          // Fast path
           for(let j=0;j<slice.length;j++){
-            const ln = slice[j];
-            this.processLine(ln, source, i+j+1, false);
-            this.processedLines++;
+            this.processLine(slice[j], source, i+j+1, false);
+            this.done++;
           }
-          this.updateProgress();
-          await sleep(0); // yield to UI
+          this.updateProgress(); await sleep(0);
         }
       }
     }
-
     async processCSV(lines, source){
-      if(lines.length===0) return;
+      if(!lines.length) return;
       const header = splitCSVLine(lines[0].toLowerCase());
-      const iEmail = header.indexOf("email");
-      const iPass  = header.indexOf("pass")>=0? header.indexOf("pass") : header.indexOf("token");
-      const iLevel = header.indexOf("level");
-      const chunk = this.mode==="fast" ? 800 : 1;
+      const iE = header.indexOf("email");
+      const iP = header.indexOf("pass")>=0 ? header.indexOf("pass") : header.indexOf("token");
+      const iL = header.indexOf("level");
+      const chunk = this.mode==="fast" ? 700 : 1;
 
-      if(iEmail===-1 || iPass===-1){
-        // Fallback to text
-        await this.processText(lines, source);
-        return;
-      }
+      if(iE===-1 || iP===-1){ await this.processText(lines, source); return; }
 
       for(let i=1;i<lines.length;i+=chunk){
-        if(this.abortCtl.stop) break;
-        const slice=lines.slice(i, i+chunk);
+        if(this.stopFlag) break;
+        const sl = lines.slice(i, i+chunk);
         if(this.mode==="slow"){
-          for(let j=0;j<slice.length;j++){
-            if(this.abortCtl.stop) break;
-            const raw = slice[j];
-            const row = splitCSVLine(raw);
-            const email = normalizeEmail(row[iEmail]||"");
-            const token = normalizeToken(row[iPass]||"");
-            const level = (iLevel>=0 && row[iLevel]) ? row[iLevel].trim() : null;
-            await this.handleParsed(email, token, level, source, raw, true);
-            this.processedLines++;
-            this.updateProgress();
-            await sleep(120);
+          for(let j=0;j<sl.length;j++){
+            if(this.stopFlag) break;
+            const raw = sl[j]; const row = splitCSVLine(raw);
+            const email = normalizeEmail(row[iE]||"");
+            const token = normalizeToken(row[iP]||"");
+            const level = (iL>=0 && row[iL]) ? row[iL].trim() : null;
+            await this.accept(email, token, level, source, raw, true);
+            this.done++; this.updateProgress(); await sleep(110);
           }
-        }else{
-          for(let j=0;j<slice.length;j++){
-            const raw = slice[j];
-            const row = splitCSVLine(raw);
-            const email = normalizeEmail(row[iEmail]||"");
-            const token = normalizeToken(row[iPass]||"");
-            const level = (iLevel>=0 && row[iLevel]) ? row[iLevel].trim() : null;
-            this.handleParsed(email, token, level, source, raw, false);
-            this.processedLines++;
+        } else {
+          for(let j=0;j<sl.length;j++){
+            const raw = sl[j]; const row = splitCSVLine(raw);
+            const email = normalizeEmail(row[iE]||"");
+            const token = normalizeToken(row[iP]||"");
+            const level = (iL>=0 && row[iL]) ? row[iL].trim() : null;
+            this.accept(email, token, level, source, raw, false);
+            this.done++;
           }
-          this.updateProgress();
-          await sleep(0);
+          this.updateProgress(); await sleep(0);
         }
       }
     }
 
-    // Single line parser
     async processLine(line, source, lineNo, slow){
-      const trimmed = String(line||"").trim();
-      if(!trimmed || trimmed.startsWith("#")) return;
+      const t = String(line||"").trim();
+      if(!t || t.startsWith("#")) return;
+      if(slow){ this.preview(t); this.log(`Line ${lineNo} • ${source}`); }
 
-      // Show raw in preview in slow mode
-      if(slow){ this.setPreview(trimmed); this.log(`Read line ${lineNo} from ${source}`); }
+      // email:token[:level]
+      let m = t.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*:\s*([^\s:]+)(?:\s*:\s*(\d+))?/);
+      if(m){ return await this.accept(normalizeEmail(m[1]), normalizeToken(m[2]), m[3]||this.grabLevel(t), source, t, slow); }
 
-      // Patterns:
-      // 1) email:token[:level]
-      let m = trimmed.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*[:]\s*([^\s:]+)(?:\s*[:]\s*(\d+))?/);
-      if(m){
-        const email = normalizeEmail(m[1]);
-        const token = normalizeToken(m[2]);
-        const level = m[3] ? m[3] : this.extractInlineLevel(trimmed);
-        await this.handleParsed(email, token, level, source, trimmed, slow);
+      // blocks with Email: / Pass|Token: / Level|lvl:
+      m = t.match(/(?:Email|email)\s*:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}).*?(?:Pass|pass|Token|token)\s*:\s*([^\s:]+).*?(?:(?:Level|level|lvl)\s*:\s*(\d+))?/);
+      if(m){ return await this.accept(normalizeEmail(m[1]), normalizeToken(m[2]), m[3]||this.grabLevel(t), source, t, slow); }
+
+      if(/@/.test(t) && !/:\s*\S+/.test(t)){
+        this.error(`[${source}] line ${lineNo}: email found without token :: ${t}`);
+        if(slow) this.log(`Invalid • missing token (line ${lineNo})`);
         return;
       }
-
-      // 2) Block formats: "... Email: xxx Pass|Token: yyy Level|lvl: zzz"
-      m = trimmed.match(/(?:Email|email)\s*[:]\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}).*?(?:Pass|pass|Token|token)\s*[:]\s*([^\s:]+).*?(?:(?:Level|level|lvl)\s*[:]\s*(\d+))?/);
-      if(m){
-        const email = normalizeEmail(m[1]);
-        const token = normalizeToken(m[2]);
-        const level = m[3] ? m[3] : this.extractInlineLevel(trimmed);
-        await this.handleParsed(email, token, level, source, trimmed, slow);
-        return;
-      }
-
-      // 3) If we see an '@' but no token delimiter
-      if(/@/.test(trimmed) && !/:\s*\S+/.test(trimmed)){
-        this.addError(`[${source}] line ${lineNo}: email found without token :: ${trimmed}`);
-        if(slow) this.log(`Invalid: email without token on line ${lineNo}`);
-        return;
-      }
-
-      // 4) Try buffered collapse of scattered tokens (best-effort omitted in favor of clarity)
-      // If still nothing, mark invalid format
-      this.addError(`[${source}] line ${lineNo}: invalid format :: ${trimmed}`);
-      if(slow) this.log(`Invalid format on line ${lineNo}`);
+      this.error(`[${source}] line ${lineNo}: invalid format :: ${t}`);
+      if(slow) this.log(`Invalid format (line ${lineNo})`);
     }
 
-    extractInlineLevel(text){
-      const m = text.match(/(?:lvl|level)\s*[:\-]?\s*(\d+)/i);
-      return m ? m[1] : null;
-    }
+    grabLevel(s){ const m = s.match(/(?:lvl|level)\s*[:\-]?\s*(\d+)/i); return m? m[1] : null; }
 
-    async handleParsed(email, token, level, source, raw, slow){
-      // Highlight order in slow mode
+    async accept(email, token, level, source, raw, slow){
       if(slow){
-        // show progressive highlights
-        this.setPreview(raw.replace(email, `<span class="hl-email">${email}</span>`));
-        await sleep(140);
-        this.setPreview(this.$preview.innerHTML.replace(token, `<span class="hl-token">${token}</span>`));
-        await sleep(140);
-        if(level){
-          const safe = String(level);
-          this.setPreview(this.$preview.innerHTML.replace(new RegExp(`(${safe})(?![^<]*>)`), `<span class="hl-level">${safe}</span>`));
-          await sleep(120);
-        }
+        this.preview(raw.replace(email, `<span class="hl-email">${email}</span>`));
+        await sleep(120);
+        this.preview(this.$preview.innerHTML.replace(token, `<span class="hl-token">${token}</span>`));
+        await sleep(120);
+        if(level){ const L=String(level); this.preview(this.$preview.innerHTML.replace(new RegExp(`(${L})(?![^<]*>)`), `<span class="hl-level">${L}</span>`)); await sleep(100); }
+      }
+      const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && token.length>0;
+      if(!ok){ this.error(`[${source}] invalid :: ${raw}`); if(slow) this.log(`Rejected ${email}`); return; }
+
+      const key = `${email}::${token.toLowerCase()}`;
+      if(this.opts.dedup.checked){
+        if(this.map.has(key)){ if(slow) this.log(`Duplicate collapsed • ${email}`); return; }
+        this.map.set(key, this.results.length);
       }
 
-      // Normalize pair
-      const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && token.length>0;
-      if(!valid){
-        this.addError(`[${source}] invalid :: ${raw}`);
-        if(slow) this.log(`Rejected (invalid) ${email}`);
-        return;
-      }
-
-      // Dedupe key (email + token lower for robustness). Also strip numeric prefixes before email (e.g., "3158.email@...")
-      const strippedEmail = email.replace(/^\d+\./,'');
-      const key = `${strippedEmail}::${token.toLowerCase()}`;
-
-      if(this.opts.proDedup.checked){
-        if(this.normalizedMap.has(key)){
-          this.incrementDupes();
-          if(slow) this.log(`Duplicate collapsed for ${strippedEmail}`);
-          return;
-        }
-        this.normalizedMap.set(key, this.results.length);
-      }
-
-      const rec = { email: strippedEmail, token, level: level||null, source, raw, valid: true, selected:false };
-      this.results.push(rec);
-      if(slow) this.log(`Accepted ${strippedEmail}${level?` (lvl ${level})`:""}`);
-
-      // Live render minimal (virtual list could be added; for simplicity we refresh batched)
+      this.results.push({email, token, level: level||null, source, raw, valid:true, selected:false});
+      if(slow) this.log(`Accepted ${email}${level?` (lvl ${level})`:""}`);
       if(this.mode==="slow") this.renderResults();
     }
 
-    // ===== Rendering =====
+    // ===== Render =====
     renderResults(){
       const onlyValid = this.opts.onlyValid.checked;
-      const mask = this.opts.maskTokens.checked;
-      const appendLevel = this.opts.appendLevel.checked;
+      const mask = this.opts.mask.checked;
+      const addL = this.opts.appendLevel.checked;
 
-      const rows = this.results
-        .filter(r => onlyValid ? r.valid : true)
-        .map((r, idx) => {
-          const tok = mask ? `<span class="tok masked">•secret•</span>` : `<span class="tok">${r.token}</span>`;
-          const triple = appendLevel && r.level ? `${r.email}:${r.token}:${r.level}` : `${r.email}:${r.token}${r.level?':'+r.level:''}`;
-          return `
-            <div class="row-item" data-i="${idx}">
-              <input type="checkbox" ${r.selected?'checked':''} aria-label="select row" />
-              <div>
-                <span class="email">${r.email}</span> :
-                ${tok}
-                ${r.level?` : <span class="lvl">${r.level}</span>`:""}
-              </div>
-              <div class="src">${r.source}</div>
-              <div>
-                <button class="secondary btn-copy" data-text="${this.escapeAttr(triple)}">Copy</button>
-                <button class="secondary btn-remove">Remove</button>
-              </div>
+      // Build rows in fragments for perf on phones
+      const frag = document.createDocumentFragment();
+      const list = el("div");
+      const items = (onlyValid? this.results.filter(x=>x.valid): this.results);
+
+      list.innerHTML = items.map((r, i) => {
+        const idx = i; // local index in filtered view
+        const tok = mask ? `<span class="tok masked">••••••</span>` : `<span class="tok">${r.token}</span>`;
+        return `
+          <div class="row-item" data-i="${idx}">
+            <input type="checkbox" ${r.selected?'checked':''} aria-label="select row">
+            <div><span class="email">${r.email}</span> : ${tok}${r.level?` : <span class="lvl">${r.level}</span>`:""}</div>
+            <div class="src">${r.source}</div>
+            <div>
+              <button class="secondary btn-copy" data-text="${this.escapeAttr(addL&&r.level?`${r.email}:${r.token}:${r.level}`:`${r.email}:${r.token}${r.level?':'+r.level:''}`)}">Copy</button>
+              <button class="secondary btn-remove">Remove</button>
             </div>
-          `;
-        }).join("");
+          </div>
+        `;
+      }).join("");
 
-      this.$results.innerHTML = rows || `<div style="color:#8aa0b6">No results yet.</div>`;
+      this.$results.replaceChildren(list);
 
-      // Wire row actions
-      this.$results.querySelectorAll(".row-item").forEach(row=>{
-        const i = Number(row.getAttribute("data-i"));
+      // Wire events only once per render
+      this.$results.querySelectorAll(".row-item").forEach((row, viewIdx)=>{
         const cb = row.querySelector('input[type="checkbox"]');
-        cb.addEventListener("change", ()=> { this.results[i].selected = cb.checked; });
-
+        cb.addEventListener("change", ()=>{
+          // Map back to original results index by locating the item
+          const email = row.querySelector(".email").textContent;
+          const s = row.querySelector(".src").textContent;
+          const idx = this.results.findIndex(r=> r.email===email && r.source===s);
+          if(idx>-1) this.results[idx].selected = cb.checked;
+        });
         row.querySelector(".btn-copy").addEventListener("click", async (e)=>{
-          const text = e.target.getAttribute("data-text");
-          await navigator.clipboard.writeText(text);
-          this.tip(e.target, "Copied!");
+          const text = e.target.getAttribute("data-text"); await navigator.clipboard.writeText(text);
+          e.target.textContent="Copied"; setTimeout(()=> e.target.textContent="Copy", 800);
         });
         row.querySelector(".btn-remove").addEventListener("click", ()=>{
-          this.results.splice(i,1);
-          this.renderResults();
-          this.updateTallies();
+          const email = row.querySelector(".email").textContent;
+          const s = row.querySelector(".src").textContent;
+          const idx = this.results.findIndex(r=> r.email===email && r.source===s);
+          if(idx>-1) this.results.splice(idx,1);
+          this.renderResults(); this.updateTallies();
         });
       });
 
-      // Toggle bulk buttons
-      const hasRows = this.results.length>0;
-      this.$copy.disabled = !hasRows;
-      this.$export.disabled = !(hasRows || this.errors.length>0);
-      this.$selAll.disabled = !hasRows;
-      this.$deselAll.disabled = !hasRows;
-      this.$rmSel.disabled = !hasRows;
-
-      this.updateTallies();
+      this.updateTallies(); this.updateButtons();
     }
 
     renderErrors(){
-      this.$errors.innerHTML = this.errors.map(e=>`<div class="err">✖ ${this.escapeHTML(e)}</div>`).join("") || `<div style="color:#8aa0b6">No errors.</div>`;
-      this.updateTallies();
+      this.$errors.innerHTML = this.errors.map(e=>`<div class="err">✖ ${this.escape(e)}</div>`).join("") || `<div style="color:#8ea0bb">No errors.</div>`;
+      this.updateTallies(); this.updateButtons();
     }
 
-    setPreview(html){
-      this.$preview.innerHTML = html || "—";
-    }
-
-    updateProgress(){
-      const pct = this.totalLines? Math.min(100, (this.processedLines/this.totalLines)*100) : 0;
-      this.$bar.style.width = pct.toFixed(1)+"%";
-    }
-
+    preview(html){ this.$preview.innerHTML = html || "—"; }
+    updateProgress(){ const pct = this.total? Math.min(100, this.done/this.total*100) : 0; this.$bar.style.width = pct.toFixed(1)+'%'; }
     updateTallies(){
       const valid = this.results.length;
       const invalid = this.errors.length;
-      const dupes = Math.max(0, this.normalizedMap.size ? (this.processedLines - invalid - this.normalizedMap.size) : 0);
+      const unique = this.map.size || valid; // when dedup off, approximate using valid
+      const dupes = Math.max(0, this.done - invalid - unique);
       this.$tValid.textContent = String(valid);
       this.$tInvalid.textContent = String(invalid);
       this.$tDupes.textContent = String(dupes);
     }
-    incrementDupes(){
-      // derived from processed - invalid - unique; still bump progress/tallies
-      this.updateTallies();
-    }
 
     // ===== Actions =====
-    setSelection(state){
-      this.results.forEach(r=> r.selected = state);
-      this.renderResults();
-    }
-    removeSelected(){
-      this.results = this.results.filter(r=> !r.selected);
-      this.renderResults();
-    }
+    selectAll(on=true){ this.results.forEach(r=> r.selected=on); this.renderResults(); }
+    removeSelected(){ this.results = this.results.filter(r=> !r.selected); this.renderResults(); }
     async copyAll(){
-      const appendLevel = this.opts.appendLevel.checked;
-      const onlyValid = this.opts.onlyValid.checked;
-      const lines = this.results.filter(r=> onlyValid ? r.valid : true).map(r=>{
-        return appendLevel && r.level ? `${r.email}:${r.token}:${r.level}` : `${r.email}:${r.token}${r.level?':'+r.level:''}`;
-      });
+      const onlyValid = this.opts.onlyValid.checked, addL = this.opts.appendLevel.checked;
+      const lines = this.results.filter(r=> onlyValid? r.valid : true)
+        .map(r => addL&&r.level? `${r.email}:${r.token}:${r.level}` : `${r.email}:${r.token}${r.level?':'+r.level:''}`);
       await navigator.clipboard.writeText(lines.join("\n"));
     }
-
     async exportZip(){
-      const zip = new JSZip();
-      const appendLevel = this.opts.appendLevel.checked;
-
-      const lines = this.results.map(r => appendLevel && r.level ? `${r.email}:${r.token}:${r.level}` : `${r.email}:${r.token}${r.level?':'+r.level:''}`);
+      const zip=new JSZip();
+      const addL=this.opts.appendLevel.checked;
+      const lines = this.results.map(r => addL&&r.level? `${r.email}:${r.token}:${r.level}` : `${r.email}:${r.token}${r.level?':'+r.level:''}`);
       const csv = ["email,token,level,valid,source"].concat(
-        this.results.map(r => [
-          r.email,
-          r.token,
-          (r.level??""),
-          r.valid ? "true" : "false",
-          r.source
-        ].map(x=>`"${String(x).replace(/"/g,'""')}"`).join(","))
+        this.results.map(r => [`"${r.email.replace(/"/g,'""')}"`,
+                               `"${r.token.replace(/"/g,'""')}"`,
+                               `"${(r.level??"").toString().replace(/"/g,'""')}"`,
+                               `"${r.valid}"`,
+                               `"${r.source.replace(/"/g,'""')}"`].join(","))
       ).join("\n");
-
       const summary = {
-        total_pairs: this.results.length + (this.$tDupes.textContent|0),
+        total_pairs: this.results.length + (Number(this.$tDupes.textContent)||0),
         valid: this.results.length,
         invalid: this.errors.length,
-        duplicates_removed: (this.$tDupes.textContent|0),
+        duplicates_removed: (Number(this.$tDupes.textContent)||0),
         with_level: this.results.filter(r=> !!r.level).length,
         include_level_toggle: this.opts.appendLevel.checked,
-        dedupe_enabled: this.opts.proDedup.checked,
-        timestamp: now()
+        dedupe_enabled: this.opts.dedup.checked,
+        timestamp: iso()
       };
-
       zip.file("pairs.txt", lines.join("\n"));
       zip.file("pairs.csv", csv);
       zip.file("errors.txt", this.errors.join("\n"));
       zip.file("summary.json", JSON.stringify(summary,null,2));
-
       const blob = await zip.generateAsync({type:"blob"});
       saveAs(blob, "grabbed_output.zip");
     }
-
-    clearAll(){
-      this.files=[]; this.renderQueue();
-      this.results=[]; this.errors=[]; this.normalizedMap.clear(); this.dupKeys.clear();
-      this.totalLines=0; this.processedLines=0;
-      this.$bar.style.width="0%";
-      this.$preview.innerHTML="—";
-      this.$log.innerHTML="";
-      this.renderResults(); this.renderErrors(); this.updateTallies();
-      this.updatePlayState();
-      this.log("Cleared session.");
+    clear(){
+      this.files=[]; this.results=[]; this.errors=[]; this.map.clear();
+      this.total=0; this.done=0; this.$bar.style.width="0%";
+      this.$queue.innerHTML = `<div style="color:#8ea0bb">No files added.</div>`;
+      this.$results.innerHTML = `<div style="color:#8ea0bb">No results yet.</div>`;
+      this.$errors.innerHTML = `<div style="color:#8ea0bb">No errors.</div>`;
+      this.$preview.textContent = "—"; this.$log.innerHTML="";
+      this.updateTallies(); this.updateButtons(); this.log("Cleared session.");
     }
 
-    addError(msg){
-      this.errors.push(msg);
-      if(this.mode==="slow") this.renderErrors();
-    }
-
-    // ===== Log & Tips =====
-    log(message){
+    // ===== Log & Utils =====
+    log(msg){
       if(this.mode!=="slow") return;
-      const item = el("div",{className:"item"});
-      const ts = el("span",{className:"ts",textContent:new Date().toLocaleTimeString()});
-      const txt = el("span",{textContent:message});
-      item.append(ts, txt);
-      this.$log.append(item);
-      this.$log.scrollTop = this.$log.scrollHeight;
+      const it = el("div",{className:"item"});
+      it.innerHTML = `<span class="ts">${new Date().toLocaleTimeString()}</span><span>${this.escape(msg)}</span>`;
+      this.$log.append(it); this.$log.scrollTop = this.$log.scrollHeight;
     }
-    tip(target, text){
-      const o = el("span",{textContent:text});
-      o.style.marginLeft="8px"; o.style.color="#9cf5ff"; o.style.fontSize="11px";
-      target.insertAdjacentElement("afterend", o);
-      setTimeout(()=> o.remove(), 900);
-    }
-
-    // ===== Helpers =====
-    escapeHTML(s){ return String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
+    error(m){ this.errors.push(m); if(this.mode==="slow") this.renderErrors(); }
+    escape(s){ return String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
     escapeAttr(s){ return String(s).replace(/"/g,"&quot;"); }
   }
 
-  // ===== Init =====
+  // Init
   const app = new Cleaner();
 })();
 </script>
