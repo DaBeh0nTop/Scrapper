@@ -11,9 +11,9 @@
 <style>
   /* ============== THEME ============== */
   :root{
-    --bg1:#0b1020; --bg2:#000000; --panel:#0f1630cc; --borderC:#17e7ff;
-    --muted:#9eb3ca; --cyan:#17e7ff; --mag:#ff3df0; --yel:#ffe64d;
-    --red:#ff596e; --green:#46ffa2;
+    --bg1:#0b1020; --bg2:#000000; --panel:#0f1630cc; --panel2:#0a1028;
+    --borderC:#17e7ff; --muted:#9eb3ca; --cyan:#17e7ff; --mag:#ff3df0; --yel:#ffe64d;
+    --red:#ff596e; --green:#46ffa2; --ink:#eaf6ff;
     --radius:14px; --radius-sm:10px;
     --pad:14px; --gap:14px;
     --shadow:0 8px 26px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.02);
@@ -24,7 +24,7 @@
   *,*::before,*::after{box-sizing:border-box}
   html,body{height:100%}
   body{
-    margin:0; color:#eef6ff; font-family: Inter, "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    margin:0; color:var(--ink); font-family: Inter, "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
     font-size: var(--text);
     background:
       radial-gradient(1000px 600px at 15% -10%, #13305a 0%, transparent 55%),
@@ -32,14 +32,15 @@
     min-height:100dvh;
   }
   a{color:var(--cyan); text-decoration:none}
+
   /* ============== LAYOUT ============== */
   .wrap{
     display:grid; grid-template-rows:auto 1fr auto;
-    min-height:100dvh; gap:var(--gap); padding:calc(var(--gap) + env(safe-area-inset-top)) var(--gap) calc(64px + var(--gap) + env(safe-area-inset-bottom));
+    min-height:100dvh; gap:var(--gap);
+    padding:calc(var(--gap) + env(safe-area-inset-top)) var(--gap)
+            calc(64px + var(--gap) + env(safe-area-inset-bottom));
   }
-  .header{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-  }
+  .header{display:flex; align-items:center; justify-content:space-between; gap:10px}
   .brand{display:flex; gap:10px; align-items:center}
   .brand h1{margin:0; font-size:clamp(18px,2.2vw,22px); color:var(--cyan); letter-spacing:.3px}
   .brand p{margin:0; color:var(--muted); font-size:12px}
@@ -47,13 +48,9 @@
   .tally span{white-space:nowrap}
   .t-valid{color:var(--green)} .t-invalid{color:var(--red)} .t-dupes{color:var(--yel)}
 
-  /* MOBILE-FIRST: one column; desktop upgrades to 2 columns */
-  .grid{
-    display:grid; grid-template-columns:1fr; gap:var(--gap);
-  }
-  @media (min-width: 980px){
-    .grid{ grid-template-columns: 420px 1fr; }
-  }
+  /* MOBILE-FIRST single column; desktop → 2 columns */
+  .grid{ display:grid; grid-template-columns:1fr; gap:var(--gap); }
+  @media (min-width: 1000px){ .grid{ grid-template-columns:420px 1fr; } }
 
   .panel{
     background:var(--panel); border:1px solid rgba(23,231,255,.22);
@@ -120,8 +117,8 @@
 
   /* Results / Errors / Preview / Log */
   .cols{display:grid; grid-template-columns:1fr; gap:var(--gap)}
-  @media (min-width: 980px){ .cols{ grid-template-columns: 1fr 360px; } }
-  .result-list{max-height:48vh; overflow:auto; -webkit-overflow-scrolling:touch; contain: content; }
+  @media (min-width: 1000px){ .cols{ grid-template-columns: 1fr 360px; } }
+  .result-list{max-height:48vh; overflow:auto; -webkit-overflow-scrolling:touch; contain:content}
   .row-item{
     display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; align-items:center;
     padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.06);
@@ -142,7 +139,7 @@
   .log .item{border-bottom:1px dotted rgba(255,255,255,.08); padding:6px 4px}
   .log .ts{color:#9fcaff; margin-right:6px}
 
-  /* Sticky mobile action bar (bottom) */
+  /* Sticky mobile action bar */
   .actionbar{
     position:fixed; left:0; right:0; bottom:0;
     padding:8px calc(10px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
@@ -150,9 +147,7 @@
     border-top:1px solid rgba(255,255,255,.08);
     display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; z-index:20;
   }
-  @media (min-width:980px){
-    .actionbar{display:none}
-  }
+  @media (min-width:1000px){ .actionbar{display:none} }
 
   .footer{color:var(--muted); font-size:12px; text-align:center; padding-bottom:env(safe-area-inset-bottom)}
 </style>
@@ -209,7 +204,7 @@
             <div class="progress" style="flex:1"><div id="bar" class="bar"></div></div>
           </div>
 
-          <div class="panel" style="margin-top:12px; background:#0a0f1f; border:1px solid rgba(255,255,255,.06)">
+          <div class="panel" style="margin-top:12px; background:var(--panel2); border:1px solid rgba(255,255,255,.06)">
             <div class="head"><h3>Queue</h3></div>
             <div class="content"><div id="queue" class="queue"></div></div>
           </div>
@@ -239,7 +234,7 @@
 
               <div id="results" class="result-list" aria-live="polite"></div>
 
-              <div class="panel" style="margin-top:12px; background:#0a0f1f; border:1px solid rgba(255,255,255,.06)">
+              <div class="panel" style="margin-top:12px; background:var(--panel2); border:1px solid rgba(255,255,255,.06)">
                 <div class="head"><h3>Errors</h3></div>
                 <div class="content">
                   <div id="errors" class="err-list"></div>
@@ -251,11 +246,11 @@
             </div>
 
             <div>
-              <div class="panel" style="background:#0a0f1f; border:1px solid rgba(255,255,255,.06)">
+              <div class="panel" style="background:var(--panel2); border:1px solid rgba(255,255,255,.06)">
                 <div class="head"><h3>Live Preview (Slow)</h3></div>
                 <div class="content"><div id="preview" class="preview">—</div></div>
               </div>
-              <div class="panel" style="margin-top:12px; background:#0a0f1f; border:1px solid rgba(255,255,255,.06)">
+              <div class="panel" style="margin-top:12px; background:var(--panel2); border:1px solid rgba(255,255,255,.06)">
                 <div class="head"><h3>Action Log (Slow)</h3></div>
                 <div class="content">
                   <div id="log" class="log" aria-live="polite"></div>
@@ -276,7 +271,7 @@
       <button id="mExport">Export</button>
     </div>
 
-    <div class="footer">Local-only processing. Export includes pairs.txt, pairs.csv, errors.txt, summary.json.</div>
+    <div class="footer">Processing is local. Export includes pairs.txt, pairs.csv, errors.txt, summary.json.</div>
   </div>
 
 <script>
@@ -298,7 +293,8 @@
       local = local.replace(/\./g,"").replace(/\+.*$/,"");
       domain = "gmail.com";
     }
-    return `${local}@${domain}`.replace(/^\d+\./,""); // strip numeric prefix before email
+    // strip numeric prefix like "3158.email@..." -> "email@..."
+    return `${local}@${domain}`.replace(/^\d+\./,"");
   }
   function normalizeToken(raw){
     if(!raw) return "";
@@ -323,11 +319,16 @@
       this.files=[];
       this.results=[]; // {email, token, level, source, raw, valid, selected}
       this.errors=[];
-      this.map=new Map(); // key -> idx
       this.total=0; this.done=0;
       this.mode="fast";
-      this.running=false;
-      this.stopFlag=false;
+      this.running=false; this.stopFlag=false;
+
+      // True counters & dedupe memory
+      this.seenEmails = new Set();
+      this.seenTokens = new Set();
+      this.seenPairs  = new Set();
+      this.dupesCount = 0;
+      this.invalidCount = 0;
 
       // UI refs
       this.$queue=$("#queue"); this.$results=$("#results"); this.$errors=$("#errors");
@@ -387,7 +388,7 @@
       this.btn.sel.addEventListener("click", ()=> this.selectAll(true));
       this.btn.desel.addEventListener("click", ()=> this.selectAll(false));
       this.btn.rm.addEventListener("click", ()=> this.removeSelected());
-      $("#clearErrors").addEventListener("click", ()=> { this.errors=[]; this.renderErrors(); });
+      $("#clearErrors").addEventListener("click", ()=> { this.errors=[]; this.invalidCount=0; this.renderErrors(); this.updateTallies(); });
       $("#clearLog").addEventListener("click", ()=> { this.$log.innerHTML=""; });
 
       // Buttons mobile
@@ -407,10 +408,16 @@
 
     setFiles(fs){
       this.files = fs.map(f=>({file:f, name:f.name, status:"Queued"}));
-      this.results=[]; this.errors=[]; this.map.clear(); this.total=0; this.done=0;
+      this.resetSessionData();
       this.renderQueue(); this.renderResults(); this.renderErrors(); this.updateTallies();
-      this.$bar.style.width="0%";
       this.updateButtons();
+    }
+
+    resetSessionData(){
+      this.results=[]; this.errors=[]; this.total=0; this.done=0;
+      this.$bar.style.width="0%"; this.$preview.textContent="—"; this.$log.innerHTML="";
+      this.seenEmails.clear(); this.seenTokens.clear(); this.seenPairs.clear();
+      this.dupesCount=0; this.invalidCount=0;
     }
 
     renderQueue(){
@@ -534,11 +541,11 @@
       if(m){ return await this.accept(normalizeEmail(m[1]), normalizeToken(m[2]), m[3]||this.grabLevel(t), source, t, slow); }
 
       if(/@/.test(t) && !/:\s*\S+/.test(t)){
-        this.error(`[${source}] line ${lineNo}: email found without token :: ${t}`);
+        this.addError(`[${source}] line ${lineNo}: email found without token :: ${t}`);
         if(slow) this.log(`Invalid • missing token (line ${lineNo})`);
         return;
       }
-      this.error(`[${source}] line ${lineNo}: invalid format :: ${t}`);
+      this.addError(`[${source}] line ${lineNo}: invalid format :: ${t}`);
       if(slow) this.log(`Invalid format (line ${lineNo})`);
     }
 
@@ -553,56 +560,63 @@
         if(level){ const L=String(level); this.preview(this.$preview.innerHTML.replace(new RegExp(`(${L})(?![^<]*>)`), `<span class="hl-level">${L}</span>`)); await sleep(100); }
       }
       const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && token.length>0;
-      if(!ok){ this.error(`[${source}] invalid :: ${raw}`); if(slow) this.log(`Rejected ${email}`); return; }
+      if(!ok){ this.addError(`[${source}] invalid :: ${raw}`); if(slow) this.log(`Rejected ${email}`); return; }
 
-      const key = `${email}::${token.toLowerCase()}`;
-      if(this.opts.dedup.checked){
-        if(this.map.has(key)){ if(slow) this.log(`Duplicate collapsed • ${email}`); return; }
-        this.map.set(key, this.results.length);
+      const pairKey = `${email}::${token.toLowerCase()}`;
+      let isDup = false;
+
+      if (this.opts.dedup.checked){
+        // Pro De-Dupe: dup if same email OR same token OR same email:token
+        if (this.seenEmails.has(email) || this.seenTokens.has(token.toLowerCase()) || this.seenPairs.has(pairKey)) {
+          isDup = true;
+        }
+        // === PAIR-ONLY DEDUPE: replace the 'if (...)' above with:
+        // if (this.seenPairs.has(pairKey)) { isDup = true; }
       }
 
-      this.results.push({email, token, level: level||null, source, raw, valid:true, selected:false});
+      if (isDup){
+        this.dupesCount++;
+        if (slow) this.log(`Duplicate skipped • ${email}`);
+        return;
+      }
+
+      // mark as seen only when accepted
+      this.seenEmails.add(email);
+      this.seenTokens.add(token.toLowerCase());
+      this.seenPairs.add(pairKey);
+
+      this.results.push({email, token, level: level||null, source, raw, valid: true, selected:false});
       if(slow) this.log(`Accepted ${email}${level?` (lvl ${level})`:""}`);
-      if(this.mode==="slow") this.renderResults();
+      if(this.mode === "slow") this.renderResults();
     }
 
-    // ===== Render =====
+    // ===== Render & Counters =====
     renderResults(){
       const onlyValid = this.opts.onlyValid.checked;
       const mask = this.opts.mask.checked;
       const addL = this.opts.appendLevel.checked;
 
-      // Build rows in fragments for perf on phones
-      const frag = document.createDocumentFragment();
-      const list = el("div");
       const items = (onlyValid? this.results.filter(x=>x.valid): this.results);
-
-      list.innerHTML = items.map((r, i) => {
-        const idx = i; // local index in filtered view
-        const tok = mask ? `<span class="tok masked">••••••</span>` : `<span class="tok">${r.token}</span>`;
-        return `
-          <div class="row-item" data-i="${idx}">
-            <input type="checkbox" ${r.selected?'checked':''} aria-label="select row">
-            <div><span class="email">${r.email}</span> : ${tok}${r.level?` : <span class="lvl">${r.level}</span>`:""}</div>
-            <div class="src">${r.source}</div>
-            <div>
-              <button class="secondary btn-copy" data-text="${this.escapeAttr(addL&&r.level?`${r.email}:${r.token}:${r.level}`:`${r.email}:${r.token}${r.level?':'+r.level:''}`)}">Copy</button>
-              <button class="secondary btn-remove">Remove</button>
-            </div>
+      const html = items.map(r => `
+        <div class="row-item" data-key="${this.escapeAttr(`${r.email}|${r.source}`)}">
+          <input type="checkbox" ${r.selected?'checked':''} aria-label="select row">
+          <div><span class="email">${r.email}</span> : ${mask?`<span class="tok masked">••••••</span>`:`<span class="tok">${r.token}</span>`}${r.level?` : <span class="lvl">${r.level}</span>`:""}</div>
+          <div class="src">${r.source}</div>
+          <div>
+            <button class="secondary btn-copy" data-text="${this.escapeAttr(addL&&r.level?`${r.email}:${r.token}:${r.level}`:`${r.email}:${r.token}${r.level?':'+r.level:''}`)}">Copy</button>
+            <button class="secondary btn-remove">Remove</button>
           </div>
-        `;
-      }).join("");
+        </div>`).join("");
 
-      this.$results.replaceChildren(list);
+      this.$results.innerHTML = html || `<div style="color:#8ea0bb">No results yet.</div>`;
 
-      // Wire events only once per render
-      this.$results.querySelectorAll(".row-item").forEach((row, viewIdx)=>{
+      // Wire row actions
+      this.$results.querySelectorAll(".row-item").forEach(row=>{
         const cb = row.querySelector('input[type="checkbox"]');
         cb.addEventListener("change", ()=>{
-          // Map back to original results index by locating the item
           const email = row.querySelector(".email").textContent;
-          const s = row.querySelector(".src").textContent;
-          const idx = this.results.findIndex(r=> r.email===email && r.source===s);
+          const src = row.querySelector(".src").textContent;
+          const idx = this.results.findIndex(r=> r.email===email && r.source===src);
           if(idx>-1) this.results[idx].selected = cb.checked;
         });
         row.querySelector(".btn-copy").addEventListener("click", async (e)=>{
@@ -611,8 +625,8 @@
         });
         row.querySelector(".btn-remove").addEventListener("click", ()=>{
           const email = row.querySelector(".email").textContent;
-          const s = row.querySelector(".src").textContent;
-          const idx = this.results.findIndex(r=> r.email===email && r.source===s);
+          const src = row.querySelector(".src").textContent;
+          const idx = this.results.findIndex(r=> r.email===email && r.source===src);
           if(idx>-1) this.results.splice(idx,1);
           this.renderResults(); this.updateTallies();
         });
@@ -629,13 +643,9 @@
     preview(html){ this.$preview.innerHTML = html || "—"; }
     updateProgress(){ const pct = this.total? Math.min(100, this.done/this.total*100) : 0; this.$bar.style.width = pct.toFixed(1)+'%'; }
     updateTallies(){
-      const valid = this.results.length;
-      const invalid = this.errors.length;
-      const unique = this.map.size || valid; // when dedup off, approximate using valid
-      const dupes = Math.max(0, this.done - invalid - unique);
-      this.$tValid.textContent = String(valid);
-      this.$tInvalid.textContent = String(invalid);
-      this.$tDupes.textContent = String(dupes);
+      this.$tValid.textContent   = String(this.results.length);
+      this.$tInvalid.textContent = String(this.invalidCount);
+      this.$tDupes.textContent   = String(this.dupesCount);
     }
 
     // ===== Actions =====
@@ -659,10 +669,10 @@
                                `"${r.source.replace(/"/g,'""')}"`].join(","))
       ).join("\n");
       const summary = {
-        total_pairs: this.results.length + (Number(this.$tDupes.textContent)||0),
+        total_pairs: this.results.length + this.dupesCount,
         valid: this.results.length,
-        invalid: this.errors.length,
-        duplicates_removed: (Number(this.$tDupes.textContent)||0),
+        invalid: this.invalidCount,
+        duplicates_removed: this.dupesCount,
         with_level: this.results.filter(r=> !!r.level).length,
         include_level_toggle: this.opts.appendLevel.checked,
         dedupe_enabled: this.opts.dedup.checked,
@@ -676,23 +686,23 @@
       saveAs(blob, "grabbed_output.zip");
     }
     clear(){
-      this.files=[]; this.results=[]; this.errors=[]; this.map.clear();
-      this.total=0; this.done=0; this.$bar.style.width="0%";
-      this.$queue.innerHTML = `<div style="color:#8ea0bb">No files added.</div>`;
+      this.files=[]; this.renderQueue();
+      this.resetSessionData();
       this.$results.innerHTML = `<div style="color:#8ea0bb">No results yet.</div>`;
       this.$errors.innerHTML = `<div style="color:#8ea0bb">No errors.</div>`;
-      this.$preview.textContent = "—"; this.$log.innerHTML="";
       this.updateTallies(); this.updateButtons(); this.log("Cleared session.");
     }
 
-    // ===== Log & Utils =====
+    // ===== Log & Errors =====
     log(msg){
       if(this.mode!=="slow") return;
       const it = el("div",{className:"item"});
       it.innerHTML = `<span class="ts">${new Date().toLocaleTimeString()}</span><span>${this.escape(msg)}</span>`;
       this.$log.append(it); this.$log.scrollTop = this.$log.scrollHeight;
     }
-    error(m){ this.errors.push(m); if(this.mode==="slow") this.renderErrors(); }
+    addError(m){ this.errors.push(m); this.invalidCount++; if(this.mode==="slow") this.renderErrors(); }
+
+    // ===== Utils =====
     escape(s){ return String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
     escapeAttr(s){ return String(s).replace(/"/g,"&quot;"); }
   }
