@@ -13,7 +13,7 @@
   :root{
     --bg1:#0b1020; --bg2:#000000; --panel:#0f1630cc; --panel2:#0a1028;
     --borderC:#17e7ff; --muted:#9eb3ca; --cyan:#17e7ff; --mag:#ff3df0; --yel:#ffe64d;
-    --red:#ff596e; --green:#46ffa2; --ink:#eaf6ff;
+    --red:#ff596e; --green:#46ffa2; --ink:#eaf6ff; --org:#ffa64d;
     --radius:14px; --radius-sm:10px;
     --pad:14px; --gap:14px;
     --shadow:0 8px 26px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.02);
@@ -123,7 +123,7 @@
     display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; align-items:center;
     padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.06);
   }
-  .email{color:var(--cyan)} .tok{color:var(--mag)} .lvl{color:var(--yel)}
+  .email{color:var(--cyan)} .tok{color:var(--mag)} .lvl{color:var(--yel)} .skn{color:var(--org)}
   .tok.masked{filter:blur(3px)}
   .src{color:#8ea0bb; font-size:12px}
   .err-list{max-height:28vh; overflow:auto; background:#0a0f1f; border:1px dashed rgba(255,255,255,.08); border-radius:12px; padding:10px}
@@ -135,6 +135,7 @@
   .hl-email{background:rgba(23,231,255,.25); padding:0 2px}
   .hl-token{background:rgba(255,61,240,.25); padding:0 2px}
   .hl-level{background:rgba(255,230,77,.25); padding:0 2px}
+  .hl-skin{background:rgba(255,166,77,.25); padding:0 2px}
   .log{max-height:28vh; overflow:auto; background:#0b0f1e; border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:10px; font-size:12px}
   .log .item{border-bottom:1px dotted rgba(255,255,255,.08); padding:6px 4px}
   .log .ts{color:#9fcaff; margin-right:6px}
@@ -197,6 +198,7 @@
               <label><input id="maskTokens" type="checkbox" checked> <span>Mask Tokens</span></label>
               <label><input id="proDedup" type="checkbox" checked> <span>Pro De-Dupe</span></label>
               <label><input id="appendLevel" type="checkbox" checked> <span>Append Level</span></label>
+              <label><input id="appendSkin" type="checkbox" checked> <span>Append Skin</span></label>
             </div>
           </div>
 
@@ -312,12 +314,21 @@
     return out;
   }
 
+  // Helpers to detect delimiter lines between blocks
+  const isDelimiter = (line) => {
+    if(!line) return true; // blank line splits blocks
+    const s = line.trim();
+    if(!s) return true;
+    // Lines made of symbols or spaces (===, ---, ~~~, *** ### ___ etc.)
+    return /^[=\-~_*#\s]{3,}$/.test(s);
+  };
+
   // ===== App =====
   class Cleaner {
     constructor(){
       // State
       this.files=[];
-      this.results=[]; // {email, token, level, source, raw, valid, selected}
+      this.results=[]; // {email, token, level, skin, source, raw, valid, selected}
       this.errors=[];
       this.total=0; this.done=0;
       this.mode="fast";
@@ -337,8 +348,12 @@
 
       // Options
       this.opts={
-        consent: $("#consent"), onlyValid: $("#onlyValid"), mask: $("#maskTokens"),
-        dedup: $("#proDedup"), appendLevel: $("#appendLevel")
+        consent: $("#consent"),
+        onlyValid: $("#onlyValid"),
+        mask: $("#maskTokens"),
+        dedup: $("#proDedup"),
+        appendLevel: $("#appendLevel"),
+        appendSkin: $("#appendSkin"),
       };
 
       // Buttons (desktop)
@@ -471,6 +486,17 @@
 
     /* FAST == big chunks; SLOW == one-by-one with preview/log */
     async processText(lines, source){
+      // We parse in two paths in one pass:
+      // 1) try single-line quick matches
+      // 2) accumulate into blocks; when delimiter detected, parse block
+      let block = [];
+      const flushBlock = async (slowPreviewLine) => {
+        if(block.length===0) return;
+        const text = block.join("\n").trim();
+        await this.parseBlock(text, source, slowPreviewLine);
+        block = [];
+      };
+
       const chunk = this.mode==="fast" ? 700 : 1;
       for(let i=0;i<lines.length;i+=chunk){
         if(this.stopFlag) break;
@@ -478,24 +504,54 @@
         if(this.mode==="slow"){
           for(let j=0;j<slice.length;j++){
             if(this.stopFlag) break;
-            await this.processLine(slice[j], source, i+j+1, true);
+            const ln = String(slice[j]||"");
+            const trimmed = ln.trim();
+
+            // If delimiter line -> flush accumulated block
+            if(isDelimiter(trimmed)){
+              await flushBlock(trimmed);
+              this.done++; this.updateProgress(); await sleep(80);
+              continue;
+            }
+
+            // Try direct single-line parse first
+            const did = await this.trySingleLine(trimmed, source, i+j+1, true, ln);
+            if(!did){
+              // Not single-line; accumulate to block
+              block.push(ln);
+              // Optionally preview block header
+              if(block.length===1 && this.mode==="slow"){
+                this.preview(ln);
+                this.log(`Start block • line ${i+j+1}`);
+              }
+            }
             this.done++; this.updateProgress(); await sleep(110);
           }
         } else {
           for(let j=0;j<slice.length;j++){
-            this.processLine(slice[j], source, i+j+1, false);
+            const ln = String(slice[j]||"");
+            const trimmed = ln.trim();
+            if(isDelimiter(trimmed)){ await flushBlock(trimmed); this.done++; continue; }
+            const did = await this.trySingleLine(trimmed, source, i+j+1, false, ln);
+            if(!did) block.push(ln);
             this.done++;
           }
           this.updateProgress(); await sleep(0);
         }
       }
+      // flush last block at EOF
+      await flushBlock("");
     }
+
     async processCSV(lines, source){
       if(!lines.length) return;
       const header = splitCSVLine(lines[0].toLowerCase());
       const iE = header.indexOf("email");
       const iP = header.indexOf("pass")>=0 ? header.indexOf("pass") : header.indexOf("token");
       const iL = header.indexOf("level");
+      const iS = header.indexOf("skin")>=0 ? header.indexOf("skin") :
+                 (header.indexOf("skins")>=0 ? header.indexOf("skins") :
+                  header.indexOf("skin count"));
       const chunk = this.mode==="fast" ? 700 : 1;
 
       if(iE===-1 || iP===-1){ await this.processText(lines, source); return; }
@@ -510,8 +566,9 @@
             const email = normalizeEmail(row[iE]||"");
             const token = normalizeToken(row[iP]||"");
             const level = (iL>=0 && row[iL]) ? row[iL].trim() : null;
-            await this.accept(email, token, level, source, raw, true);
-            this.done++; this.updateProgress(); await sleep(110);
+            const skin  = (iS>=0 && row[iS]) ? row[iS].trim() : null;
+            await this.accept(email, token, level, skin, source, raw, true);
+            this.done++; this.updateProgress(); await sleep(90);
           }
         } else {
           for(let j=0;j<sl.length;j++){
@@ -519,7 +576,8 @@
             const email = normalizeEmail(row[iE]||"");
             const token = normalizeToken(row[iP]||"");
             const level = (iL>=0 && row[iL]) ? row[iL].trim() : null;
-            this.accept(email, token, level, source, raw, false);
+            const skin  = (iS>=0 && row[iS]) ? row[iS].trim() : null;
+            this.accept(email, token, level, skin, source, raw, false);
             this.done++;
           }
           this.updateProgress(); await sleep(0);
@@ -527,40 +585,89 @@
       }
     }
 
-    async processLine(line, source, lineNo, slow){
-      const t = String(line||"").trim();
-      if(!t || t.startsWith("#")) return;
-      if(slow){ this.preview(t); this.log(`Line ${lineNo} • ${source}`); }
-
-      // email:token[:level]
-      let m = t.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*:\s*([^\s:]+)(?:\s*:\s*(\d+))?/);
-      if(m){ return await this.accept(normalizeEmail(m[1]), normalizeToken(m[2]), m[3]||this.grabLevel(t), source, t, slow); }
-
-      // blocks with Email: / Pass|Token: / Level|lvl:
-      m = t.match(/(?:Email|email)\s*:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}).*?(?:Pass|pass|Token|token)\s*:\s*([^\s:]+).*?(?:(?:Level|level|lvl)\s*:\s*(\d+))?/);
-      if(m){ return await this.accept(normalizeEmail(m[1]), normalizeToken(m[2]), m[3]||this.grabLevel(t), source, t, slow); }
-
-      if(/@/.test(t) && !/:\s*\S+/.test(t)){
-        this.addError(`[${source}] line ${lineNo}: email found without token :: ${t}`);
-        if(slow) this.log(`Invalid • missing token (line ${lineNo})`);
-        return;
+    // Try to parse a single-line format like: email:token[:level][:skin]
+    async trySingleLine(trimmed, source, lineNo, slow, rawLine){
+      if(!trimmed || trimmed.startsWith("#")) return true; // ignore comments/empties
+      // classic pair (allow optional :level and :skin numbers)
+      let m = trimmed.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*:\s*([^\s:]+)(?:\s*:\s*(\d+))?(?:\s*:\s*(\d+))?/);
+      if(m){
+        const email = normalizeEmail(m[1]);
+        const token = normalizeToken(m[2]);
+        const level = m[3] || this.grabLevel(trimmed);
+        const skin  = m[4] || this.grabSkin(trimmed);
+        await this.accept(email, token, level, skin, source, rawLine ?? trimmed, slow);
+        return true;
       }
-      this.addError(`[${source}] line ${lineNo}: invalid format :: ${t}`);
-      if(slow) this.log(`Invalid format (line ${lineNo})`);
+      // block-like in one line: "Email: x Pass: y Level: z Skins: k"
+      m = trimmed.match(/(?:Email|email)\s*:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}).*?(?:Pass|pass|Token|token)\s*:\s*([^\s:]+).*?(?:(?:Level|level|lvl)\s*:\s*(\d+))?.*?(?:(?:Skins?|skin\s*count)\s*:\s*(\d+))?/);
+      if(m){
+        const email = normalizeEmail(m[1]);
+        const token = normalizeToken(m[2]);
+        const level = m[3] || this.grabLevel(trimmed);
+        const skin  = m[4] || this.grabSkin(trimmed);
+        await this.accept(email, token, level, skin, source, rawLine ?? trimmed, slow);
+        return true;
+      }
+
+      // not single-line
+      // If line contains @ but no token part, don't error yet—could be in a block; return false to buffer
+      return false;
+    }
+
+    async parseBlock(text, source, slowPreviewLine){
+      const raw = text;
+      if(this.mode==="slow"){
+        this.preview(text);
+        if(slowPreviewLine) this.log(`Delimiter: "${(slowPreviewLine||'').toString().trim()}"`);
+      }
+
+      // Try rich block extraction: email / pass|token / level|lvl / skins|skin count
+      const emailM = text.match(/(?:^|\b)(?:Email|email)\s*:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+      const tokenM = text.match(/(?:^|\b)(?:Pass|pass|Token|token)\s*:\s*([^\s:\r\n]+)/);
+      // Accept either explicit level or inline "lvl: 30" anywhere
+      const levelM = text.match(/(?:Level|level|lvl)\s*[:\-]?\s*(\d+)/);
+      // Skins / Skin Count variants
+      const skinM  = text.match(/(?:Skins?|skin\s*count)\s*[:\-]?\s*(\d+)/i);
+
+      // Fallback: look for first email and next token-ish word after a colon somewhere
+      let email = emailM ? normalizeEmail(emailM[1]) : (text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/)?.[1] ?? "");
+      if(email) email = normalizeEmail(email);
+      const token = tokenM ? normalizeToken(tokenM[1]) : (text.match(/:\s*([^\s:\r\n]+)/)?.[1] ? normalizeToken(text.match(/:\s*([^\s:\r\n]+)/)[1]) : "");
+      const level = levelM ? levelM[1] : null;
+      const skin  = skinM ? skinM[1] : null;
+
+      if(email && token){
+        await this.accept(email, token, level, skin, source, raw, this.mode==="slow");
+      } else {
+        // Block without enough info is invalid
+        this.addError(`[${source}] block invalid :: ${raw.substring(0,120)}${raw.length>120?'…':''}`);
+        if(this.mode==="slow") this.log(`Rejected block (missing ${!email?'email':''}${!email&&!token?' and ':''}${!token?'token':''})`);
+      }
     }
 
     grabLevel(s){ const m = s.match(/(?:lvl|level)\s*[:\-]?\s*(\d+)/i); return m? m[1] : null; }
+    grabSkin(s){  const m = s.match(/(?:skins?|skin\s*count)\s*[:\-]?\s*(\d+)/i); return m? m[1] : null; }
 
-    async accept(email, token, level, source, raw, slow){
+    async accept(email, token, level, skin, source, raw, slow){
       if(slow){
-        this.preview(raw.replace(email, `<span class="hl-email">${email}</span>`));
-        await sleep(120);
-        this.preview(this.$preview.innerHTML.replace(token, `<span class="hl-token">${token}</span>`));
-        await sleep(120);
-        if(level){ const L=String(level); this.preview(this.$preview.innerHTML.replace(new RegExp(`(${L})(?![^<]*>)`), `<span class="hl-level">${L}</span>`)); await sleep(100); }
+        // progressive highlights
+        this.preview(raw.replace(email, `<span class="hl-email">${this.escape(email)}</span>`));
+        await sleep(110);
+        this.preview(this.$preview.innerHTML.replace(token, `<span class="hl-token">${this.escape(token)}</span>`));
+        await sleep(110);
+        if(level){
+          const L=String(level);
+          this.preview(this.$preview.innerHTML.replace(new RegExp(`(${L})(?![^<]*>)`), `<span class="hl-level">${this.escape(L)}</span>`));
+          await sleep(90);
+        }
+        if(skin){
+          const S=String(skin);
+          this.preview(this.$preview.innerHTML.replace(new RegExp(`(${S})(?![^<]*>)`), `<span class="hl-skin">${this.escape(S)}</span>`));
+          await sleep(80);
+        }
       }
       const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && token.length>0;
-      if(!ok){ this.addError(`[${source}] invalid :: ${raw}`); if(slow) this.log(`Rejected ${email}`); return; }
+      if(!ok){ this.addError(`[${source}] invalid :: ${raw}`); if(slow) this.log(`Rejected ${email||'—'}`); return; }
 
       const pairKey = `${email}::${token.toLowerCase()}`;
       let isDup = false;
@@ -585,25 +692,31 @@
       this.seenTokens.add(token.toLowerCase());
       this.seenPairs.add(pairKey);
 
-      this.results.push({email, token, level: level||null, source, raw, valid: true, selected:false});
-      if(slow) this.log(`Accepted ${email}${level?` (lvl ${level})`:""}`);
+      this.results.push({email, token, level: level||null, skin: skin||null, source, raw, valid: true, selected:false});
+      if(slow) this.log(`Accepted ${email}${level?` (lvl ${level})`:""}${skin?` (skins ${skin})`:""}`);
       if(this.mode === "slow") this.renderResults();
     }
 
-    // ===== Render & Counters =====
+    /* ========== Render & Counters ========== */
     renderResults(){
       const onlyValid = this.opts.onlyValid.checked;
       const mask = this.opts.mask.checked;
       const addL = this.opts.appendLevel.checked;
+      const addS = this.opts.appendSkin.checked;
 
       const items = (onlyValid? this.results.filter(x=>x.valid): this.results);
       const html = items.map(r => `
         <div class="row-item" data-key="${this.escapeAttr(`${r.email}|${r.source}`)}">
           <input type="checkbox" ${r.selected?'checked':''} aria-label="select row">
-          <div><span class="email">${r.email}</span> : ${mask?`<span class="tok masked">••••••</span>`:`<span class="tok">${r.token}</span>`}${r.level?` : <span class="lvl">${r.level}</span>`:""}</div>
-          <div class="src">${r.source}</div>
           <div>
-            <button class="secondary btn-copy" data-text="${this.escapeAttr(addL&&r.level?`${r.email}:${r.token}:${r.level}`:`${r.email}:${r.token}${r.level?':'+r.level:''}`)}">Copy</button>
+            <span class="email">${this.escape(r.email)}</span> :
+            ${mask?`<span class="tok masked">••••••</span>`:`<span class="tok">${this.escape(r.token)}</span>`}
+            ${r.level?` : <span class="lvl">${this.escape(r.level)}</span>`:""}
+            ${r.skin?` : <span class="skn">${this.escape(r.skin)}</span>`:""}
+          </div>
+          <div class="src">${this.escape(r.source)}</div>
+          <div>
+            <button class="secondary btn-copy" data-text="${this.escapeAttr(this.buildLine(r, addL, addS))}">Copy</button>
             <button class="secondary btn-remove">Remove</button>
           </div>
         </div>`).join("");
@@ -635,6 +748,23 @@
       this.updateTallies(); this.updateButtons();
     }
 
+    buildLine(r, addL, addS){
+      // Rules:
+      // - If addS and skin present → include skin at the end.
+      // - If no skin → output email:token:level (if level exists).
+      // - If skin exists but no level and addS → output email:token:skin.
+      let out = `${r.email}:${r.token}`;
+      if(r.level && addL) out += `:${r.level}`;
+      if(addS && r.skin){
+        if(!r.level && addL){ /* no level but appendLevel true */ out += `:${r.skin}`; }
+        else if(!r.level && !addL){ out += `:${r.skin}`; }
+        else { out += `:${r.skin}`; }
+      }
+      // If appendLevel off but level exists and skin not added, keep base email:token
+      if(!addL && (!addS || !r.skin)){ /* nothing */ }
+      return out;
+    }
+
     renderErrors(){
       this.$errors.innerHTML = this.errors.map(e=>`<div class="err">✖ ${this.escape(e)}</div>`).join("") || `<div style="color:#8ea0bb">No errors.</div>`;
       this.updateTallies(); this.updateButtons();
@@ -648,25 +778,23 @@
       this.$tDupes.textContent   = String(this.dupesCount);
     }
 
-    // ===== Actions =====
+    /* ========== Actions ========== */
     selectAll(on=true){ this.results.forEach(r=> r.selected=on); this.renderResults(); }
     removeSelected(){ this.results = this.results.filter(r=> !r.selected); this.renderResults(); }
     async copyAll(){
-      const onlyValid = this.opts.onlyValid.checked, addL = this.opts.appendLevel.checked;
+      const onlyValid = this.opts.onlyValid.checked, addL = this.opts.appendLevel.checked, addS = this.opts.appendSkin.checked;
       const lines = this.results.filter(r=> onlyValid? r.valid : true)
-        .map(r => addL&&r.level? `${r.email}:${r.token}:${r.level}` : `${r.email}:${r.token}${r.level?':'+r.level:''}`);
+        .map(r => this.buildLine(r, addL, addS));
       await navigator.clipboard.writeText(lines.join("\n"));
     }
     async exportZip(){
       const zip=new JSZip();
-      const addL=this.opts.appendLevel.checked;
-      const lines = this.results.map(r => addL&&r.level? `${r.email}:${r.token}:${r.level}` : `${r.email}:${r.token}${r.level?':'+r.level:''}`);
-      const csv = ["email,token,level,valid,source"].concat(
-        this.results.map(r => [`"${r.email.replace(/"/g,'""')}"`,
-                               `"${r.token.replace(/"/g,'""')}"`,
-                               `"${(r.level??"").toString().replace(/"/g,'""')}"`,
-                               `"${r.valid}"`,
-                               `"${r.source.replace(/"/g,'""')}"`].join(","))
+      const addL=this.opts.appendLevel.checked, addS=this.opts.appendSkin.checked;
+      const lines = this.results.map(r => this.buildLine(r, addL, addS));
+      const csv = ["email,token,level,skin,valid,source"].concat(
+        this.results.map(r => [
+          r.email, r.token, (r.level??""), (r.skin??""), (r.valid?"true":"false"), r.source
+        ].map(x=>`"${String(x).replace(/"/g,'""')}"`).join(","))
       ).join("\n");
       const summary = {
         total_pairs: this.results.length + this.dupesCount,
@@ -674,7 +802,9 @@
         invalid: this.invalidCount,
         duplicates_removed: this.dupesCount,
         with_level: this.results.filter(r=> !!r.level).length,
+        with_skin: this.results.filter(r=> !!r.skin).length,
         include_level_toggle: this.opts.appendLevel.checked,
+        include_skin_toggle: this.opts.appendSkin.checked,
         dedupe_enabled: this.opts.dedup.checked,
         timestamp: iso()
       };
