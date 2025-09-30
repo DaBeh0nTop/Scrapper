@@ -95,6 +95,26 @@
     background:#0a1126; border:1px solid rgba(255,255,255,.06);
   }
 
+  .slider{
+    display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center;
+    width:100%;
+  }
+  input[type="range"]{
+    -webkit-appearance:none; width:100%; height:12px; border-radius:8px;
+    background:#0b0f1e; border:1px solid rgba(255,255,255,.08);
+    outline:none; cursor:pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:22px; height:22px; border-radius:50%;
+    background:linear-gradient(180deg, #1ef1ff, #14b1ff); box-shadow:0 0 0 3px rgba(20,177,255,.22);
+    border:0;
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:22px; height:22px; border-radius:50%;
+    background:linear-gradient(180deg, #1ef1ff, #14b1ff); border:0;
+  }
+  .speed-label{color:#9fcaff; min-width:60px; font-weight:700}
+
   button{
     appearance:none; -webkit-tap-highlight-color:transparent;
     background:linear-gradient(180deg, #1ef1ff, #14b1ff); color:#001018;
@@ -177,18 +197,27 @@
         <div class="content controls">
           <div id="upload" class="upload" tabindex="0">
             <strong>Tap or Drag & Drop files</strong>
-            <p>TXT, CSV, LOG • Processed locally on your device</p>
-            <input id="file" type="file" multiple accept=".txt,.csv,.log" hidden />
+            <p>TXT, CSV, LOG, ZIP • Processed locally on your device</p>
+            <input id="file" type="file" multiple accept=".txt,.csv,.log,.zip" hidden />
           </div>
 
           <div class="row" style="margin-top:10px">
-            <div class="seg" role="radiogroup" aria-label="Mode">
-              <label><input type="radio" name="mode" value="fast" checked><span>Fast</span></label>
-              <label><input type="radio" name="mode" value="slow"><span>Slow (visual)</span></label>
-            </div>
-            <div class="consent">
-              <input id="consent" type="checkbox">
-              <label for="consent">I own or have permission to process these files</label>
+            <!-- New: Visual speed slider + Quick Mode -->
+            <div class="panel" style="flex:1; background:var(--panel2); border:1px solid rgba(255,255,255,.06)">
+              <div class="head"><h3>Processing Style</h3></div>
+              <div class="content" style="display:grid; gap:10px">
+                <div class="slider">
+                  <span class="speed-label" id="speedLabel">🐢 Slow</span>
+                  <input id="speed" type="range" min="0" max="100" value="60" />
+                  <span class="speed-label" id="speedLabelR">Fast 🐇</span>
+                </div>
+                <div class="switch">
+                  <label><input id="quickMode" type="checkbox"> <span>Quick Mode (no preview)</span></label>
+                </div>
+                <small style="color:#8ea0bb; display:block">
+                  Slider = visual speed (always shows process). Quick Mode ignores slider and runs fastest with previews off.
+                </small>
+              </div>
             </div>
           </div>
 
@@ -199,6 +228,13 @@
               <label><input id="proDedup" type="checkbox" checked> <span>Pro De-Dupe</span></label>
               <label><input id="appendLevel" type="checkbox" checked> <span>Append Level</span></label>
               <label><input id="appendSkin" type="checkbox" checked> <span>Append Skin</span></label>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:6px">
+            <div class="consent">
+              <input id="consent" type="checkbox">
+              <label for="consent">I own or have permission to process these files</label>
             </div>
           </div>
 
@@ -249,11 +285,11 @@
 
             <div>
               <div class="panel" style="background:var(--panel2); border:1px solid rgba(255,255,255,.06)">
-                <div class="head"><h3>Live Preview (Slow)</h3></div>
+                <div class="head"><h3>Live Preview</h3></div>
                 <div class="content"><div id="preview" class="preview">—</div></div>
               </div>
               <div class="panel" style="margin-top:12px; background:var(--panel2); border:1px solid rgba(255,255,255,.06)">
-                <div class="head"><h3>Action Log (Slow)</h3></div>
+                <div class="head"><h3>Action Log</h3></div>
                 <div class="content">
                   <div id="log" class="log" aria-live="polite"></div>
                   <div class="row" style="margin-top:8px"><button id="clearLog" class="secondary">Clear Log</button></div>
@@ -284,6 +320,13 @@
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const iso = () => new Date().toISOString();
 
+  // Visual delay (ms) from slider value 0..100
+  const delayFor = v => {
+    const x = Math.max(0, Math.min(100, Number(v)||0));
+    // 0 → 140ms, 50 → 70ms, 100 → 15ms (ease-out)
+    return Math.round(15 + (140-15) * Math.pow(1 - x/100, 1.4));
+  };
+
   // ===== Normalizers =====
   function normalizeEmail(raw){
     if(!raw) return "";
@@ -295,12 +338,11 @@
       local = local.replace(/\./g,"").replace(/\+.*$/,"");
       domain = "gmail.com";
     }
-    // strip numeric prefix like "3158.email@..." -> "email@..."
     return `${local}@${domain}`.replace(/^\d+\./,"");
   }
   function normalizeToken(raw){
     if(!raw) return "";
-    return String(raw).trim().replace(/[^a-zA-Z0-9]/g,""); // remove =>, ==> etc.
+    return String(raw).trim().replace(/[^a-zA-Z0-9]/g,"");
   }
   function splitCSVLine(line){
     const out=[]; let cur=""; let q=false;
@@ -313,13 +355,10 @@
     out.push(cur.trim());
     return out;
   }
-
-  // Helpers to detect delimiter lines between blocks
   const isDelimiter = (line) => {
-    if(!line) return true; // blank line splits blocks
+    if(!line) return true;
     const s = line.trim();
     if(!s) return true;
-    // Lines made of symbols or spaces (===, ---, ~~~, *** ### ___ etc.)
     return /^[=\-~_*#\s]{3,}$/.test(s);
   };
 
@@ -331,10 +370,9 @@
       this.results=[]; // {email, token, level, skin, source, raw, valid, selected}
       this.errors=[];
       this.total=0; this.done=0;
-      this.mode="fast";
       this.running=false; this.stopFlag=false;
 
-      // True counters & dedupe memory
+      // Dedup + counters
       this.seenEmails = new Set();
       this.seenTokens = new Set();
       this.seenPairs  = new Set();
@@ -354,6 +392,8 @@
         dedup: $("#proDedup"),
         appendLevel: $("#appendLevel"),
         appendSkin: $("#appendSkin"),
+        quick: $("#quickMode"),
+        speed: $("#speed"),
       };
 
       // Buttons (desktop)
@@ -363,36 +403,39 @@
       // Mobile bar
       this.mbtn={ play:$("#mPlay"), stop:$("#mStop"), export:$("#mExport") };
 
+      // Labels
+      this.$speedLabelL = $("#speedLabel");
+      this.$speedLabelR = $("#speedLabelR");
+
       this.bind();
       this.updateButtons();
+      this.updateSpeedLabels();
     }
 
     bind(){
-      // Upload
       const up=$("#upload"), file=$("#file");
       up.addEventListener("click", ()=> file.click());
       ["dragover","dragenter"].forEach(evn=> up.addEventListener(evn, e=>{ e.preventDefault(); up.classList.add("drag"); }));
       ["dragleave","drop"].forEach(evn=> up.addEventListener(evn, e=>{ e.preventDefault(); up.classList.remove("drag"); }));
-      up.addEventListener("drop", e=>{
-        const fs=[...e.dataTransfer.files].filter(f=>/\.(txt|csv|log)$/i.test(f.name));
-        if(fs.length) this.setFiles(fs);
+      up.addEventListener("drop", async e=>{
+        const fs=[...e.dataTransfer.files].filter(f=>/\.(txt|csv|log|zip)$/i.test(f.name));
+        if(fs.length) await this.addFiles(fs);
       });
-      file.addEventListener("change", e=>{
-        const fs=[...e.target.files].filter(f=>/\.(txt|csv|log)$/i.test(f.name));
-        if(fs.length) this.setFiles(fs);
+      file.addEventListener("change", async e=>{
+        const fs=[...e.target.files].filter(f=>/\.(txt|csv|log|zip)$/i.test(f.name));
+        if(fs.length) await this.addFiles(fs);
         file.value="";
       });
 
-      // Mode
-      document.querySelectorAll('input[name="mode"]').forEach(r =>
-        r.addEventListener("change", ()=>{
-          this.mode = document.querySelector('input[name="mode"]:checked').value;
-          this.log(`Mode: ${this.mode.toUpperCase()}`);
-        })
-      );
+      // Speed & Quick
+      this.opts.speed.addEventListener("input", ()=> this.updateSpeedLabels());
+      this.opts.quick.addEventListener("change", ()=> this.updateSpeedLabels());
 
       // Toggles
-      Object.values(this.opts).forEach(input => input.addEventListener("change", ()=> this.renderResults()));
+      Object.entries(this.opts).forEach(([k,input])=>{
+        if(!input || ['speed','quick'].includes(k)) return;
+        input.addEventListener("change", ()=> this.renderResults());
+      });
 
       // Buttons desktop
       this.btn.play.addEventListener("click", ()=> this.start());
@@ -421,11 +464,50 @@
       });
     }
 
-    setFiles(fs){
-      this.files = fs.map(f=>({file:f, name:f.name, status:"Queued"}));
-      this.resetSessionData();
-      this.renderQueue(); this.renderResults(); this.renderErrors(); this.updateTallies();
-      this.updateButtons();
+    updateSpeedLabels(){
+      const v = Number(this.opts.speed.value||0);
+      const d = delayFor(v);
+      const quick = this.opts.quick.checked;
+      this.$speedLabelL.textContent = "🐢 Slow";
+      this.$speedLabelR.textContent = quick ? "Quick ⚡" : ("Fast 🐇");
+      // optional: reflect ms in title tooltip
+      this.opts.speed.title = `Visual delay ≈ ${d}ms`;
+    }
+
+    async addFiles(fs){
+      // Reset session when new batch is added (like before)
+      this.files=[]; this.resetSessionData();
+      for(const f of fs){
+        if(/\.zip$/i.test(f.name)){
+          await this.expandZip(f);
+        } else {
+          this.files.push({file:f, name:f.name, status:"Queued"});
+        }
+      }
+      this.renderQueue(); this.updateButtons();
+    }
+
+    async expandZip(zipFile){
+      try{
+        const zip = await JSZip.loadAsync(zipFile);
+        const entries = Object.values(zip.files);
+        if(!entries.length){
+          this.addError(`[${zipFile.name}] zip is empty`);
+          return;
+        }
+        for(const entry of entries){
+          if(entry.dir) continue;
+          if(!/\.(txt|csv|log)$/i.test(entry.name)) continue;
+          const content = await entry.async("string");
+          const vf = new File([content], `${zipFile.name.replace(/\.(zip)$/i,'')}/${entry.name}`, {type:"text/plain"});
+          this.files.push({file:vf, name:vf.name, status:"Queued"});
+        }
+        if(!this.files.length){
+          this.addError(`[${zipFile.name}] no .txt/.csv/.log files found`);
+        }
+      }catch(err){
+        this.addError(`[${zipFile.name}] failed to read zip: ${err && err.message ? err.message : err}`);
+      }
     }
 
     resetSessionData(){
@@ -484,11 +566,8 @@
     }
     stop(){ if(!this.running) return; this.stopFlag=true; this.log("Stop requested."); }
 
-    /* FAST == big chunks; SLOW == one-by-one with preview/log */
+    /* ===== Core parsing ===== */
     async processText(lines, source){
-      // We parse in two paths in one pass:
-      // 1) try single-line quick matches
-      // 2) accumulate into blocks; when delimiter detected, parse block
       let block = [];
       const flushBlock = async (slowPreviewLine) => {
         if(block.length===0) return;
@@ -497,37 +576,37 @@
         block = [];
       };
 
-      const chunk = this.mode==="fast" ? 700 : 1;
+      const quick = this.opts.quick.checked;
+      const chunk = quick ? 700 : 1;
+      const visDelay = delayFor(this.opts.speed.value);
+
       for(let i=0;i<lines.length;i+=chunk){
         if(this.stopFlag) break;
         const slice = lines.slice(i, i+chunk);
-        if(this.mode==="slow"){
+        if(!quick){
           for(let j=0;j<slice.length;j++){
             if(this.stopFlag) break;
             const ln = String(slice[j]||"");
             const trimmed = ln.trim();
 
-            // If delimiter line -> flush accumulated block
             if(isDelimiter(trimmed)){
               await flushBlock(trimmed);
-              this.done++; this.updateProgress(); await sleep(80);
+              this.done++; this.updateProgress(); await sleep(Math.max(10, visDelay/2));
               continue;
             }
 
-            // Try direct single-line parse first
             const did = await this.trySingleLine(trimmed, source, i+j+1, true, ln);
             if(!did){
-              // Not single-line; accumulate to block
               block.push(ln);
-              // Optionally preview block header
-              if(block.length===1 && this.mode==="slow"){
+              if(block.length===1){
                 this.preview(ln);
                 this.log(`Start block • line ${i+j+1}`);
               }
             }
-            this.done++; this.updateProgress(); await sleep(110);
+            this.done++; this.updateProgress(); await sleep(visDelay);
           }
         } else {
+          // Quick mode: no preview or log, large chunks
           for(let j=0;j<slice.length;j++){
             const ln = String(slice[j]||"");
             const trimmed = ln.trim();
@@ -539,7 +618,6 @@
           this.updateProgress(); await sleep(0);
         }
       }
-      // flush last block at EOF
       await flushBlock("");
     }
 
@@ -552,14 +630,16 @@
       const iS = header.indexOf("skin")>=0 ? header.indexOf("skin") :
                  (header.indexOf("skins")>=0 ? header.indexOf("skins") :
                   header.indexOf("skin count"));
-      const chunk = this.mode==="fast" ? 700 : 1;
+      const quick = this.opts.quick.checked;
+      const chunk = quick ? 700 : 1;
+      const visDelay = delayFor(this.opts.speed.value);
 
       if(iE===-1 || iP===-1){ await this.processText(lines, source); return; }
 
       for(let i=1;i<lines.length;i+=chunk){
         if(this.stopFlag) break;
         const sl = lines.slice(i, i+chunk);
-        if(this.mode==="slow"){
+        if(!quick){
           for(let j=0;j<sl.length;j++){
             if(this.stopFlag) break;
             const raw = sl[j]; const row = splitCSVLine(raw);
@@ -568,7 +648,7 @@
             const level = (iL>=0 && row[iL]) ? row[iL].trim() : null;
             const skin  = (iS>=0 && row[iS]) ? row[iS].trim() : null;
             await this.accept(email, token, level, skin, source, raw, true);
-            this.done++; this.updateProgress(); await sleep(90);
+            this.done++; this.updateProgress(); await sleep(visDelay);
           }
         } else {
           for(let j=0;j<sl.length;j++){
@@ -585,119 +665,109 @@
       }
     }
 
-    // Try to parse a single-line format like: email:token[:level][:skin]
-    async trySingleLine(trimmed, source, lineNo, slow, rawLine){
-      if(!trimmed || trimmed.startsWith("#")) return true; // ignore comments/empties
-      // classic pair (allow optional :level and :skin numbers)
+    async trySingleLine(trimmed, source, lineNo, visual, rawLine){
+      if(!trimmed || trimmed.startsWith("#")) return true;
+      // email:token[:level][:skin]
       let m = trimmed.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*:\s*([^\s:]+)(?:\s*:\s*(\d+))?(?:\s*:\s*(\d+))?/);
       if(m){
         const email = normalizeEmail(m[1]);
         const token = normalizeToken(m[2]);
         const level = m[3] || this.grabLevel(trimmed);
         const skin  = m[4] || this.grabSkin(trimmed);
-        await this.accept(email, token, level, skin, source, rawLine ?? trimmed, slow);
+        await this.accept(email, token, level, skin, source, rawLine ?? trimmed, visual);
         return true;
       }
-      // block-like in one line: "Email: x Pass: y Level: z Skins: k"
+      // inline block style
       m = trimmed.match(/(?:Email|email)\s*:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}).*?(?:Pass|pass|Token|token)\s*:\s*([^\s:]+).*?(?:(?:Level|level|lvl)\s*:\s*(\d+))?.*?(?:(?:Skins?|skin\s*count)\s*:\s*(\d+))?/);
       if(m){
         const email = normalizeEmail(m[1]);
         const token = normalizeToken(m[2]);
         const level = m[3] || this.grabLevel(trimmed);
         const skin  = m[4] || this.grabSkin(trimmed);
-        await this.accept(email, token, level, skin, source, rawLine ?? trimmed, slow);
+        await this.accept(email, token, level, skin, source, rawLine ?? trimmed, visual);
         return true;
       }
-
-      // not single-line
-      // If line contains @ but no token part, don't error yet—could be in a block; return false to buffer
       return false;
     }
 
     async parseBlock(text, source, slowPreviewLine){
       const raw = text;
-      if(this.mode==="slow"){
+      const quick = this.opts.quick.checked;
+      if(!quick){
         this.preview(text);
         if(slowPreviewLine) this.log(`Delimiter: "${(slowPreviewLine||'').toString().trim()}"`);
       }
 
-      // Try rich block extraction: email / pass|token / level|lvl / skins|skin count
       const emailM = text.match(/(?:^|\b)(?:Email|email)\s*:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
       const tokenM = text.match(/(?:^|\b)(?:Pass|pass|Token|token)\s*:\s*([^\s:\r\n]+)/);
-      // Accept either explicit level or inline "lvl: 30" anywhere
       const levelM = text.match(/(?:Level|level|lvl)\s*[:\-]?\s*(\d+)/);
-      // Skins / Skin Count variants
       const skinM  = text.match(/(?:Skins?|skin\s*count)\s*[:\-]?\s*(\d+)/i);
 
-      // Fallback: look for first email and next token-ish word after a colon somewhere
       let email = emailM ? normalizeEmail(emailM[1]) : (text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/)?.[1] ?? "");
       if(email) email = normalizeEmail(email);
       const token = tokenM ? normalizeToken(tokenM[1]) : (text.match(/:\s*([^\s:\r\n]+)/)?.[1] ? normalizeToken(text.match(/:\s*([^\s:\r\n]+)/)[1]) : "");
-      const level = levelM ? levelM[1] : null;
-      const skin  = skinM ? skinM[1] : null;
+      const level = levelM ? levelM[1] : this.grabLevel(text);
+      const skin  = skinM ? skinM[1] : this.grabSkin(text);
 
       if(email && token){
-        await this.accept(email, token, level, skin, source, raw, this.mode==="slow");
+        await this.accept(email, token, level, skin, source, raw, !quick);
       } else {
-        // Block without enough info is invalid
         this.addError(`[${source}] block invalid :: ${raw.substring(0,120)}${raw.length>120?'…':''}`);
-        if(this.mode==="slow") this.log(`Rejected block (missing ${!email?'email':''}${!email&&!token?' and ':''}${!token?'token':''})`);
+        if(!quick) this.log(`Rejected block (missing ${!email?'email':''}${!email&&!token?' and ':''}${!token?'token':''})`);
       }
     }
 
     grabLevel(s){ const m = s.match(/(?:lvl|level)\s*[:\-]?\s*(\d+)/i); return m? m[1] : null; }
     grabSkin(s){  const m = s.match(/(?:skins?|skin\s*count)\s*[:\-]?\s*(\d+)/i); return m? m[1] : null; }
 
-    async accept(email, token, level, skin, source, raw, slow){
-      if(slow){
-        // progressive highlights
+    async accept(email, token, level, skin, source, raw, visual){
+      if(visual){
+        const d = delayFor(this.opts.speed.value);
         this.preview(raw.replace(email, `<span class="hl-email">${this.escape(email)}</span>`));
-        await sleep(110);
+        await sleep(Math.max(30, d*0.8));
         this.preview(this.$preview.innerHTML.replace(token, `<span class="hl-token">${this.escape(token)}</span>`));
-        await sleep(110);
+        await sleep(Math.max(20, d*0.6));
         if(level){
           const L=String(level);
           this.preview(this.$preview.innerHTML.replace(new RegExp(`(${L})(?![^<]*>)`), `<span class="hl-level">${this.escape(L)}</span>`));
-          await sleep(90);
+          await sleep(Math.max(10, d*0.4));
         }
         if(skin){
           const S=String(skin);
           this.preview(this.$preview.innerHTML.replace(new RegExp(`(${S})(?![^<]*>)`), `<span class="hl-skin">${this.escape(S)}</span>`));
-          await sleep(80);
+          await sleep(Math.max(10, d*0.3));
         }
       }
       const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && token.length>0;
-      if(!ok){ this.addError(`[${source}] invalid :: ${raw}`); if(slow) this.log(`Rejected ${email||'—'}`); return; }
+      if(!ok){ this.addError(`[${source}] invalid :: ${raw}`); if(visual) this.log(`Rejected ${email||'—'}`); return; }
 
       const pairKey = `${email}::${token.toLowerCase()}`;
       let isDup = false;
 
       if (this.opts.dedup.checked){
-        // Pro De-Dupe: dup if same email OR same token OR same email:token
         if (this.seenEmails.has(email) || this.seenTokens.has(token.toLowerCase()) || this.seenPairs.has(pairKey)) {
           isDup = true;
         }
-        // === PAIR-ONLY DEDUPE: replace the 'if (...)' above with:
+        // Pair-only alternative:
         // if (this.seenPairs.has(pairKey)) { isDup = true; }
       }
 
       if (isDup){
         this.dupesCount++;
-        if (slow) this.log(`Duplicate skipped • ${email}`);
+        if (visual) this.log(`Duplicate skipped • ${email}`);
         return;
       }
 
-      // mark as seen only when accepted
       this.seenEmails.add(email);
       this.seenTokens.add(token.toLowerCase());
       this.seenPairs.add(pairKey);
 
       this.results.push({email, token, level: level||null, skin: skin||null, source, raw, valid: true, selected:false});
-      if(slow) this.log(`Accepted ${email}${level?` (lvl ${level})`:""}${skin?` (skins ${skin})`:""}`);
-      if(this.mode === "slow") this.renderResults();
+      if(visual) this.log(`Accepted ${email}${level?` (lvl ${level})`:""}${skin?` (skins ${skin})`:""}`);
+      if(visual) this.renderResults();
     }
 
-    /* ========== Render & Counters ========== */
+    /* ===== Render & Counters ===== */
     renderResults(){
       const onlyValid = this.opts.onlyValid.checked;
       const mask = this.opts.mask.checked;
@@ -723,7 +793,6 @@
 
       this.$results.innerHTML = html || `<div style="color:#8ea0bb">No results yet.</div>`;
 
-      // Wire row actions
       this.$results.querySelectorAll(".row-item").forEach(row=>{
         const cb = row.querySelector('input[type="checkbox"]');
         cb.addEventListener("change", ()=>{
@@ -749,19 +818,9 @@
     }
 
     buildLine(r, addL, addS){
-      // Rules:
-      // - If addS and skin present → include skin at the end.
-      // - If no skin → output email:token:level (if level exists).
-      // - If skin exists but no level and addS → output email:token:skin.
       let out = `${r.email}:${r.token}`;
       if(r.level && addL) out += `:${r.level}`;
-      if(addS && r.skin){
-        if(!r.level && addL){ /* no level but appendLevel true */ out += `:${r.skin}`; }
-        else if(!r.level && !addL){ out += `:${r.skin}`; }
-        else { out += `:${r.skin}`; }
-      }
-      // If appendLevel off but level exists and skin not added, keep base email:token
-      if(!addL && (!addS || !r.skin)){ /* nothing */ }
+      if(addS && r.skin) out += `:${r.skin}`;
       return out;
     }
 
@@ -778,7 +837,7 @@
       this.$tDupes.textContent   = String(this.dupesCount);
     }
 
-    /* ========== Actions ========== */
+    /* ===== Actions ===== */
     selectAll(on=true){ this.results.forEach(r=> r.selected=on); this.renderResults(); }
     removeSelected(){ this.results = this.results.filter(r=> !r.selected); this.renderResults(); }
     async copyAll(){
@@ -806,6 +865,8 @@
         include_level_toggle: this.opts.appendLevel.checked,
         include_skin_toggle: this.opts.appendSkin.checked,
         dedupe_enabled: this.opts.dedup.checked,
+        quick_mode: this.opts.quick.checked,
+        visual_speed: Number(this.opts.speed.value||0),
         timestamp: iso()
       };
       zip.file("pairs.txt", lines.join("\n"));
@@ -823,16 +884,16 @@
       this.updateTallies(); this.updateButtons(); this.log("Cleared session.");
     }
 
-    // ===== Log & Errors =====
+    /* ===== Log & Errors ===== */
     log(msg){
-      if(this.mode!=="slow") return;
+      if(this.opts.quick.checked) return; // no log in Quick mode
       const it = el("div",{className:"item"});
       it.innerHTML = `<span class="ts">${new Date().toLocaleTimeString()}</span><span>${this.escape(msg)}</span>`;
       this.$log.append(it); this.$log.scrollTop = this.$log.scrollHeight;
     }
-    addError(m){ this.errors.push(m); this.invalidCount++; if(this.mode==="slow") this.renderErrors(); }
+    addError(m){ this.errors.push(m); this.invalidCount++; if(!this.opts.quick.checked) this.renderErrors(); }
 
-    // ===== Utils =====
+    /* ===== Utils ===== */
     escape(s){ return String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
     escapeAttr(s){ return String(s).replace(/"/g,"&quot;"); }
   }
